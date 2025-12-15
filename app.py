@@ -315,10 +315,6 @@ def library():
         
     return render_template('library.html', exercises=exercises)
 
-@app.route('/api_docs')
-def api_docs():
-    return render_template('api_docs.html')
-
 @app.route('/exercise/<int:ex_id>')
 def exercise_detail(ex_id):
     if not client.credentials.get("token"): return redirect(url_for('settings'))
