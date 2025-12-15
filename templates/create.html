@@ -535,7 +535,7 @@ You must output a JSON object with the following structure:
         copyText.select();
         copyText.setSelectionRange(0, 99999); 
         navigator.clipboard.writeText(copyText.value);
-        alert("Prompt copied to clipboard!");
+        alert("Prompt copied to clipboard! You can now close this window and then paste this into a LLM like ChatGPT or Claude to generate a workout plan.");
     };
 
     window.openImportModal = () => {
