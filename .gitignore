@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+config.json
+static/media_cache/
+.env
+.vscode/
+*.log
