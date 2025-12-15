@@ -2,15 +2,37 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from api_client import SpeedianceClient
 import json
 import os
+import sys
+import webbrowser
+from threading import Timer
 import requests
 from urllib.parse import urlparse
 
-app = Flask(__name__)
+# Determine if running as a script or frozen exe (PyInstaller)
+if getattr(sys, 'frozen', False):
+    # If frozen, use the temporary folder created by PyInstaller
+    base_dir = sys._MEIPASS
+    template_folder = os.path.join(base_dir, 'templates')
+    static_folder = os.path.join(base_dir, 'static')
+    app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
+else:
+    # If running as script, use default paths
+    app = Flask(__name__)
+
 app.secret_key = "speediance_secret_key" # For Flash Messages
 client = SpeedianceClient()
 
 # --- Media Caching Logic ---
-CACHE_ROOT = os.path.join(app.root_path, 'static', 'media_cache')
+# Define local cache path
+# Use base_dir to ensure it works in exe mode (though usually we want cache outside the temp exe folder)
+# For the cache, we actually want it next to the executable, not inside the temp folder
+if getattr(sys, 'frozen', False):
+    # If exe, store cache next to the exe file
+    current_dir = os.path.dirname(sys.executable)
+else:
+    current_dir = app.root_path
+    
+CACHE_ROOT = os.path.join(current_dir, 'static', 'media_cache')
 
 def get_cache_path(url):
     """Determines local path and subfolder based on URL extension."""
@@ -361,5 +383,15 @@ def delete(id):
     flash("Workout deleted.", "info")
     return redirect(url_for('index'))
 
+def open_browser():
+    webbrowser.open_new("http://127.0.0.1:5001")
+
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    # Check if running as frozen exe
+    if getattr(sys, 'frozen', False):
+        # Open browser automatically after 1.5s
+        Timer(1.5, open_browser).start()
+        # Debug MUST be False for frozen apps
+        app.run(debug=False, port=5001, host='0.0.0.0')
+    else:
+        app.run(debug=True, port=5001, host='0.0.0.0')
