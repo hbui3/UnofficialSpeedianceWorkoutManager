@@ -9,6 +9,14 @@
     {% block head %}{% endblock %}
 </head>
 <body class="min-h-screen flex flex-col">
+    <div class="bg-gray-800 text-gray-400 text-xs py-1 border-b border-gray-700 text-center">
+        <div class="container mx-auto">
+            If this tool helped you save time, I would appreciate your support! 
+            <a href="https://buymeacoffee.com/hbui3" target="_blank" class="text-[#FFDD00] hover:underline font-bold ml-2">
+                ☕ Buy me a coffee
+            </a>
+        </div>
+    </div>
     <nav class="bg-gray-900 border-b border-gray-800 p-4">
         <div class="container mx-auto flex justify-between items-center">
             <a href="/" class="text-xl font-bold text-white">UNOFFICIAL <span class="text-green-500">WORKOUT MANAGER</span></a>
@@ -21,19 +29,6 @@
             </div>
         </div>
     </nav>
-
-    <div class="bg-gray-800 border-b border-gray-700 p-4">
-        <div class="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
-            <p class="text-gray-300 text-sm">
-                If this tool helped you save time compared to the mobile app, I would appreciate your support! 
-                This helps with future updates and maintenance.
-            </p>
-            <a href="https://buymeacoffee.com/hbui3" target="_blank" class="flex-shrink-0 inline-flex items-center bg-[#FFDD00] hover:bg-[#FFDD00]/90 text-black font-bold py-2 px-4 rounded-lg transition-colors shadow-sm text-sm">
-                <span class="text-lg mr-2">☕</span>
-                Buy me a coffee
-            </a>
-        </div>
-    </div>
 
     <main class="container mx-auto p-4 flex-grow">
         {% with messages = get_flashed_messages(with_categories=true) %}
