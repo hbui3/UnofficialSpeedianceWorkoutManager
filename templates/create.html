@@ -299,6 +299,21 @@
         }
     }
 
+    // --- HELPER ---
+    function getRules(ex) {
+        let rules = PRESET_RULES[ex.selectedPresetId] || PRESET_RULES['-1'];
+        // Adjust limits for Custom (KG) based on Unilateral/Bilateral
+        if (ex.selectedPresetId == -1) {
+            rules = {...rules}; // Clone
+            if (ex.isUnilateral) {
+                rules.maxW = 50;
+            } else {
+                rules.maxW = 100;
+            }
+        }
+        return rules;
+    }
+
     // --- RENDER UI ---
     function renderBuilder() {
         const container = document.getElementById('builder-area');
@@ -317,7 +332,7 @@
             card.className = 'bg-gray-900 rounded-lg border border-gray-700 overflow-hidden';
             
             // Rules für aktuelles Preset laden
-            const rules = PRESET_RULES[ex.selectedPresetId] || PRESET_RULES['-1'];
+            const rules = getRules(ex);
 
             let variantsHtml = ex.variants.map(v => 
                 `<option value="${v.id}" ${v.id == ex.selectedVariantId ? 'selected' : ''}>Coach ${v.coach ? v.coach.name : 'Standard'}</option>`
@@ -433,7 +448,7 @@
     // Validierung und Update
     window.validateAndSet = (exIdx, sIdx, field, input) => {
         const ex = workoutData[exIdx];
-        const rules = PRESET_RULES[ex.selectedPresetId] || PRESET_RULES['-1'];
+        const rules = getRules(ex);
         let val = parseInt(input.value);
 
         // Grenzen prüfen
@@ -633,7 +648,7 @@ You must output a JSON object with the following structure:
         
         // Wenn Preset geändert wird -> Alle Sets auf neue Defaults setzen!
         if(field === 'selectedPresetId') {
-            const rules = PRESET_RULES[String(workoutData[exIdx].selectedPresetId)] || PRESET_RULES['-1'];
+            const rules = getRules(workoutData[exIdx]);
             workoutData[exIdx].sets.forEach(set => {
                 set.weight = rules.defW;
                 set.reps = rules.defR;
@@ -664,7 +679,7 @@ You must output a JSON object with the following structure:
 
     window.addSet = (exIdx) => {
         const ex = workoutData[exIdx];
-        const rules = PRESET_RULES[ex.selectedPresetId] || PRESET_RULES['-1'];
+        const rules = getRules(ex);
         
         // Neue Sets bekommen IMMER die Defaults des aktuellen Presets
         const newSetTemplate = {
