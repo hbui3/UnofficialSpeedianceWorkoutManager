@@ -307,8 +307,10 @@
             rules = {...rules}; // Clone
             if (ex.isUnilateral) {
                 rules.maxW = 50;
+                rules.minW = 4;
             } else {
                 rules.maxW = 100;
+                rules.minW = 7;
             }
         }
         return rules;
