@@ -11,7 +11,7 @@
         <div class="p-5">
             <h3 class="text-xl font-bold text-white mb-2">{{ w.name }}</h3>
             <div class="text-sm text-gray-400 space-y-1">
-                <p>Volume: {{ w.totalCapacity }} kg</p>
+                <p>Volume: {{ w.totalCapacity }} {{ 'lbs' if unit == 1 else 'kg' }}</p>
                 <p>Duration: ~{{ w.durationMinute }} min</p>
                 <p>Exercises: {{ w.actionNum }}</p>
             </div>

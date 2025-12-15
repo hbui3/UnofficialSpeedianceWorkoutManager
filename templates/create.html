@@ -751,7 +751,16 @@ You must output a JSON object with the following structure:
             groupId: ex.groupId, 
             variant_id: ex.selectedVariantId,
             preset_id: ex.selectedPresetId,
-            sets: ex.sets 
+            sets: ex.sets.map(s => {
+                const newSet = {...s};
+                // If Imperial (1) and Custom Preset (-1), convert LBS -> KG before sending
+                if (userUnit === 1 && ex.selectedPresetId == -1) {
+                    let lbs = parseFloat(newSet.weight);
+                    let kg = lbs / 2.2;
+                    newSet.weight = Math.round(kg * 2) / 2;
+                }
+                return newSet;
+            })
         }));
 
         const res = await fetch('/create', {

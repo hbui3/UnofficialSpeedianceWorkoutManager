@@ -124,7 +124,9 @@ def index():
     except:
         flash("Error loading workouts. Invalid token?", "error")
         workouts = []
-    return render_template('index.html', workouts=workouts)
+    
+    unit = client.credentials.get('unit', 0)
+    return render_template('index.html', workouts=workouts, unit=unit)
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():

@@ -36,6 +36,7 @@ A desktop web interface for managing Speediance Gym Monster workouts, viewing th
 ## Configuration
 
 1.  Go to **Settings** and log in with your Speediance account credentials.
+2.  **Unit System**: You can switch between Metric (KG) and Imperial (LBS) in the Settings page. This will adjust the Workout Builder limits and display units accordingly.
 
 ## Usage Guide
 
@@ -87,12 +88,6 @@ python test_e2e_workouts.py
 This script simulates a user logging in, creating a workout, and verifying the data structure.
 
 ## Known Issues & Limitations
-
-### Weight Conversion (Lbs vs Kg)
-- The Speediance API and this application primarily operate in **Metric (kg)** internally.
-- **Warning**: Weight conversion logic for Imperial units (lbs) is **not fully tested**. 
-- If your device is set to lbs, or if you are in a region that uses different default unit standards, you may experience discrepancies between the values entered here and what appears on your device.
-- Always double-check the weights on your machine before starting a set.
 
 ### Regional Differences
 - The API endpoints used are based on the global/US servers. Users in China or other specific regions might use different API endpoints which are not currently supported.
