@@ -4,8 +4,10 @@ import json
 import os
 import sys
 import webbrowser
-from threading import Timer
+from threading import Timer, Thread
 import requests
+import tkinter as tk
+from tkinter import scrolledtext
 from urllib.parse import urlparse
 
 # Determine if running as a script or frozen exe (PyInstaller)
@@ -383,15 +385,75 @@ def delete(id):
     flash("Workout deleted.", "info")
     return redirect(url_for('index'))
 
+class TextRedirector(object):
+    def __init__(self, widget, tag="stdout"):
+        self.widget = widget
+        self.tag = tag
+
+    def write(self, str):
+        try:
+            self.widget.configure(state="normal")
+            self.widget.insert("end", str, (self.tag,))
+            self.widget.see("end")
+            self.widget.configure(state="disabled")
+        except:
+            pass
+    
+    def flush(self):
+        pass
+
 def open_browser():
     webbrowser.open_new("http://127.0.0.1:5001")
 
+def run_flask_server():
+    try:
+        app.run(debug=False, port=5001, host='0.0.0.0', use_reloader=False)
+    except Exception as e:
+        print(f"Error starting server: {e}")
+
+def start_gui():
+    root = tk.Tk()
+    root.title("Speediance Manager Server")
+    root.geometry("700x500")
+    
+    lbl = tk.Label(root, text="Speediance Manager is running.\nDo not close this window while using the app.", font=("Arial", 10), pady=10)
+    lbl.pack()
+
+    btn_frame = tk.Frame(root)
+    btn_frame.pack(pady=5)
+
+    btn_open = tk.Button(btn_frame, text="Open in Browser", command=open_browser, bg="#4CAF50", fg="white", font=("Arial", 10, "bold"), padx=10, pady=5)
+    btn_open.pack(side=tk.LEFT, padx=10)
+
+    def on_close():
+        root.destroy()
+        sys.exit(0)
+
+    btn_close = tk.Button(btn_frame, text="Stop Server & Exit", command=on_close, bg="#f44336", fg="white", font=("Arial", 10, "bold"), padx=10, pady=5)
+    btn_close.pack(side=tk.LEFT, padx=10)
+
+    log_frame = tk.Frame(root)
+    log_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+    
+    tk.Label(log_frame, text="Server Logs:", anchor="w").pack(fill=tk.X)
+    
+    text_area = scrolledtext.ScrolledText(log_frame, state='disabled', font=("Consolas", 9))
+    text_area.pack(fill=tk.BOTH, expand=True)
+    
+    sys.stdout = TextRedirector(text_area, "stdout")
+    sys.stderr = TextRedirector(text_area, "stderr")
+
+    root.protocol("WM_DELETE_WINDOW", on_close)
+
+    t = Thread(target=run_flask_server, daemon=True)
+    t.start()
+
+    Timer(2.0, open_browser).start()
+
+    root.mainloop()
+
 if __name__ == '__main__':
-    # Check if running as frozen exe
     if getattr(sys, 'frozen', False):
-        # Open browser automatically after 1.5s
-        Timer(1.5, open_browser).start()
-        # Debug MUST be False for frozen apps
-        app.run(debug=False, port=5001, host='0.0.0.0')
+        start_gui()
     else:
         app.run(debug=True, port=5001, host='0.0.0.0')
