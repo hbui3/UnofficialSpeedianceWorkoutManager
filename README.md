@@ -11,23 +11,31 @@ A desktop web interface for managing Speediance Gym Monster workouts, viewing th
 - **Offline Media**: Cache images and videos locally to reduce bandwidth and improve loading times.
 - **E2E Testing**: Includes a test suite to verify workout creation and API integration.
 
-## Installation
+## Installation & Usage
 
+### Option A: Windows Executable (Recommended for most users)
+1.  Download the latest `UnofficialSpeedianceWorkoutManager.exe` from the [Releases page](https://github.com/hbui3/UnofficialSpeedianceWorkoutManager/releases).
+2.  Double-click the `.exe` file to run it.
+    *   *Note: Windows Defender might warn you because this app is not signed. Click "More Info" -> "Run Anyway".*
+3.  A control window will appear, and your default web browser will automatically open to the application.
+4.  **Do not close the control window** while using the app. To stop the server, click "Stop Server & Exit" in the control window.
+
+### Option B: Running from Source (For developers)
 1.  Clone the repository.
 2.  Install dependencies:
     ```bash
     pip install -r requirements.txt
     ```
-
-## Configuration
-
-1.  Copy `config.example.json` to `config.json`.
-2.  Run the application:
+3.  Copy `config.example.json` to `config.json`.
+4.  Run the application:
     ```bash
     python app.py
     ```
-3.  Open your browser at `http://localhost:5001`.
-4.  Go to **Settings** and log in with your Speediance account credentials.
+5.  Open your browser at `http://localhost:5001`.
+
+## Configuration
+
+1.  Go to **Settings** and log in with your Speediance account credentials.
 
 ## Usage Guide
 
