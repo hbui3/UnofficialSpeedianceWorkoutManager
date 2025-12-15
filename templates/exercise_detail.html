@@ -1,0 +1,256 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto pb-20">
+    
+    <a href="/library" class="inline-flex items-center text-gray-400 hover:text-white mb-6 transition group">
+        <svg class="w-4 h-4 mr-2 group-hover:-translate-x-1 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        Back to Library
+    </a>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <div class="lg:col-span-8 space-y-8">
+            
+            <div class="bg-gray-800 rounded-2xl overflow-hidden border border-gray-700 shadow-2xl relative">
+                <div class="aspect-video bg-black relative flex items-center justify-center">
+                    <video id="main-video" controls autoplay loop muted class="w-full h-full object-contain">
+                        {% set first_var = ex.actionLibraryList[0] %}
+                        <source src="{{ (first_var.videoPath or first_var.leftVideo) | local_cache(True) }}" type="video/mp4">
+                    </video>
+                </div>
+                
+                <div class="p-4 bg-gray-900 border-t border-gray-700 flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <img id="current-coach-img" src="{{ first_var.coach.avatar | local_cache(True) }}" class="w-10 h-10 rounded-full border-2 border-green-500 p-0.5">
+                        <div>
+                            <p class="text-xs text-gray-400 uppercase font-bold">Coach</p>
+                            <p id="current-coach-name" class="text-white font-bold">{{ first_var.coach.name }}</p>
+                        </div>
+                    </div>
+                    
+                    {% if ex.actionLibraryList|length > 1 %}
+                    <div class="flex gap-2">
+                        {% for variant in ex.actionLibraryList %}
+                        <button onclick="switchCoach(this)" 
+                                data-video="{{ (variant.videoPath or variant.leftVideo) | local_cache(True) }}" 
+                                data-name="{{ variant.coach.name }}" 
+                                data-avatar="{{ variant.coach.avatar | local_cache(True) }}"
+                                class="coach-btn w-8 h-8 rounded-full overflow-hidden border-2 border-gray-600 hover:border-white transition {% if loop.first %}border-green-500{% endif %}"
+                                title="Switch to {{ variant.coach.name }}">
+                            <img src="{{ variant.coach.avatar | local_cache(True) }}" class="w-full h-full object-cover">
+                        </button>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <svg class="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    Instructions
+                </h2>
+                <div class="prose prose-invert max-w-none text-gray-300 whitespace-pre-line leading-relaxed text-lg">
+                    {{ ex.context }}
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {% if ex.motionFeeling %}
+                <div class="bg-gray-800/50 rounded-xl p-5 border border-yellow-900/30">
+                    <h3 class="text-yellow-500 font-bold mb-2 flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        Pro Tip
+                    </h3>
+                    <p class="text-gray-300 text-sm">{{ ex.motionFeeling }}</p>
+                </div>
+                {% endif %}
+
+                {% if ex.breathingRate %}
+                <div class="bg-gray-800/50 rounded-xl p-5 border border-blue-900/30">
+                    <h3 class="text-blue-400 font-bold mb-2 flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"/></svg>
+                        Breathing
+                    </h3>
+                    <p class="text-gray-300 text-sm">{{ ex.breathingRate }}</p>
+                </div>
+                {% endif %}
+
+                {% if ex.errorCorrection %}
+                <div class="bg-gray-800/50 rounded-xl p-5 border border-red-900/30 md:col-span-2">
+                    <h3 class="text-red-400 font-bold mb-2 flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        Common Mistakes
+                    </h3>
+                    <p class="text-gray-300 text-sm">{{ ex.errorCorrection }}</p>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if ex.steps %}
+            <div>
+                <h3 class="text-sm font-bold text-gray-400 uppercase mb-4 tracking-wider">Detailed Steps</h3>
+                <div class="flex gap-4 overflow-x-auto snap-x snap-mandatory pb-4 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+                    {% for step in ex.steps %}
+                    <div class="snap-center shrink-0 w-[85%] md:w-[45%] bg-gray-800 rounded-xl overflow-hidden border border-gray-700 flex flex-col shadow-lg">
+                        <div class="h-48 bg-gray-900 relative group cursor-pointer" onclick="openModal('{{ step.img | local_cache(True) }}')">
+                            <img src="{{ step.img | local_cache(True) }}" class="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105" loading="lazy">
+                            <div class="absolute top-2 left-2 bg-black/60 text-white px-3 py-1 rounded-full text-sm font-bold backdrop-blur-sm">
+                                Step {{ loop.index }}
+                            </div>
+                            <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                                <svg class="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg>
+                            </div>
+                        </div>
+                        <div class="p-5 flex-grow">
+                            <p class="text-gray-300 leading-relaxed text-sm">{{ step.context }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+
+        <div class="lg:col-span-4 space-y-6">
+            
+            <div class="bg-gray-800 rounded-xl p-6 border border-gray-700 sticky top-4">
+                <h1 class="text-3xl font-bold text-white mb-4 leading-tight">{{ ex.title }}</h1>
+                
+                <div class="flex flex-wrap gap-2 mb-6">
+                    <span class="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
+                        {{ ex.mainMuscleGroupName or "General" }}
+                    </span>
+                    {% if ex.isBarbell == 1 %}
+                    <span class="bg-blue-600/20 text-blue-400 border border-blue-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        Sync Mode
+                    </span>
+                    {% endif %}
+                </div>
+
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center p-3 bg-gray-900 rounded-lg">
+                        <span class="text-gray-400 text-sm">Recommended Weight</span>
+                        <span class="text-white font-mono font-bold">{{ ex.recommendedWeight }} kg</span>
+                    </div>
+                    <div class="flex justify-between items-center p-3 bg-gray-900 rounded-lg">
+                        <span class="text-gray-400 text-sm">Intensity (MET)</span>
+                        <span class="text-white font-mono font-bold">{{ ex.metValue }}</span>
+                    </div>
+                </div>
+
+                <div class="mt-8">
+                    <h3 class="text-xs font-bold text-gray-500 uppercase mb-3 tracking-wider">Target Muscles</h3>
+                    <div class="flex flex-wrap gap-2">
+                        {% for aux in ex.auxiliaryMuscleGroupList %}
+                        <span class="bg-gray-700 text-gray-300 px-2 py-0.5 rounded text-xs border border-gray-600">
+                            {{ aux.muscleGroupName }} (Auxiliary)
+                        </span>
+                        {% endfor %}
+                    </div>
+                    {% if ex.mainMuscleGroupConfigId %}
+                        <p class="text-sm text-green-500 mt-2">Primary Focus: {{ ex.mainMuscleGroupName }}</p>
+                    {% endif %}
+                </div>
+                
+                {% if ex.outPosition is not none %}
+                <div class="mt-8">
+                    <h3 class="text-xs font-bold text-gray-500 uppercase mb-3 tracking-wider">Cable Height Level</h3>
+                    <div class="bg-gray-900 p-4 rounded-lg border border-gray-800 text-center">
+                        {% set pos = ex.outPosition %}
+                        {% if pos == 10 %}
+                            {% set label = "Platform End (Lowest/Floor)" %}
+                        {% elif pos == 0 %}
+                            {% set label = "Top (Highest)" %}
+                        {% else %}
+                            {% set label = "Level " ~ pos %}
+                        {% endif %}
+                        <p class="text-xl font-bold text-blue-400">Position: {{ label }}</p>
+                        {% if ex.foldingStoolAngle %}
+                            <p class="text-sm text-gray-400 mt-1">Bench Angle Required: {{ ex.foldingStoolAngle }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+
+                {% if accessories %}
+                <div class="mt-8">
+                    <h3 class="text-xs font-bold text-gray-500 uppercase mb-3 tracking-wider">Required Equipment</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        {% for acc in accessories %}
+                        <div class="flex flex-col items-center bg-gray-900/50 rounded-lg p-3 text-center border border-gray-800 hover:border-gray-600 transition">
+                            <img src="{{ acc.icon }}" class="w-10 h-10 mb-2 object-contain grayscale hover:grayscale-0 transition">
+                            <span class="text-xs text-gray-300 leading-tight">{{ acc.name }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="mt-8 pt-6 border-t border-gray-700">
+                    <a href="/create" class="block w-full text-center bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition shadow-lg shadow-green-900/20">
+                        Insert into Workout
+                    </a>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Image Modal -->
+<div id="image-modal" class="fixed inset-0 z-50 hidden bg-black/95 flex items-center justify-center p-4 cursor-zoom-out backdrop-blur-sm" onclick="closeModal()">
+    <img id="modal-img" src="" class="max-w-full max-h-[90vh] rounded-lg shadow-2xl object-contain">
+    <button class="absolute top-6 right-6 text-white/50 hover:text-white transition">
+        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+    </button>
+</div>
+
+<script>
+    function openModal(src) {
+        const modal = document.getElementById('image-modal');
+        const img = document.getElementById('modal-img');
+        img.src = src;
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden'; // Prevent scrolling
+    }
+
+    function closeModal() {
+        const modal = document.getElementById('image-modal');
+        modal.classList.add('hidden');
+        document.body.style.overflow = ''; // Restore scrolling
+    }
+
+    // Close on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeModal();
+    });
+
+    function switchCoach(btn) {
+        const videoUrl = btn.getAttribute('data-video');
+        const coachName = btn.getAttribute('data-name');
+        const coachAvatar = btn.getAttribute('data-avatar');
+
+        const videoEl = document.getElementById('main-video');
+        const nameEl = document.getElementById('current-coach-name');
+        const imgEl = document.getElementById('current-coach-img');
+
+        videoEl.src = videoUrl;
+        videoEl.play();
+
+        nameEl.innerText = coachName;
+        imgEl.src = coachAvatar;
+
+        document.querySelectorAll('.coach-btn').forEach(b => {
+            b.classList.remove('border-green-500');
+            b.classList.add('border-gray-600');
+        });
+        btn.classList.remove('border-gray-600');
+        btn.classList.add('border-green-500');
+    }
+</script>
+{% endblock %}

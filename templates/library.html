@@ -1,0 +1,253 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container mx-auto">
+    
+    <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Exercise Library</h1>
+            <p class="text-gray-400 text-sm mt-1">{{ exercises|length }} exercises available</p>
+        </div>
+        
+        <div class="relative w-full md:w-1/3">
+            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <svg class="w-4 h-4 text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
+                </svg>
+            </div>
+            <input type="text" id="search-input" 
+                   class="block w-full p-4 pl-10 text-sm border rounded-lg bg-gray-800 border-gray-700 placeholder-gray-400 text-white focus:ring-green-500 focus:border-green-500" 
+                   placeholder="Search exercises (e.g. Bench Press)...">
+        </div>
+    </div>
+
+    <div class="flex flex-wrap gap-2 mb-8 justify-center md:justify-start">
+        <button onclick="filterByMuscle('all', this)" class="filter-btn active px-4 py-2 rounded-full text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition">All</button>
+        <button onclick="filterByMuscle('11', this)" class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">Chest</button>
+        <button onclick="filterByMuscle('13', this)" class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">Back</button>
+        <button onclick="filterByMuscle('12', this)" class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">Shoulders</button>
+        <button onclick="filterByMuscle('16', this)" class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">Arms</button>
+        <button onclick="filterByMuscle('15', this)" class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">Legs</button>
+        <button onclick="filterByMuscle('17', this)" class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">Core</button>
+        
+        <div class="ml-auto pl-4 border-l border-gray-700">
+            <button id="view-toggle-btn" onclick="toggleView()" class="px-4 py-2 rounded-full text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                Table View
+            </button>
+        </div>
+    </div>
+
+    <div id="llm-table-view" class="hidden">
+        <div class="bg-gray-800 p-4 rounded-lg mb-6 border border-gray-700">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="text-white font-bold">LLM-Optimized Data</h3>
+                <button onclick="copyTableToClipboard()" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded border border-gray-600 transition">Copy Table to Clipboard</button>
+            </div>
+            <p class="text-sm text-gray-400">
+                This table contains structured data for all currently filtered exercises. You can copy and paste this into ChatGPT or Claude to generate workouts.
+                <br><strong>Prompt Idea:</strong> "Here is a list of available exercises. Create a Push/Pull/Legs split using only these exercises..."
+            </p>
+        </div>
+
+        <div class="overflow-x-auto rounded-lg border border-gray-700 max-h-[80vh]">
+            <table class="w-full text-left text-sm text-gray-400" id="exercises-table">
+                <thead class="text-xs text-gray-200 uppercase bg-gray-900 sticky top-0 z-10">
+                    <tr>
+                        <th class="px-4 py-3 whitespace-nowrap">ID</th>
+                        <th class="px-4 py-3 whitespace-nowrap">Exercise Name</th>
+                        <th class="px-4 py-3 whitespace-nowrap">Primary Focus</th>
+                        <th class="px-4 py-3 whitespace-nowrap">Target Muscles</th>
+                        <th class="px-4 py-3 whitespace-nowrap">Required Equipment</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-gray-800 divide-y divide-gray-700">
+                    {% for ex in exercises %}
+                    <tr class="hover:bg-gray-700/50 exercise-row" data-title="{{ ex.title | lower }}" data-muscle="{{ ex.trainingPartId2 }}">
+                        <td class="px-4 py-2 font-mono text-xs text-gray-500 align-top">{{ ex.id }}</td>
+                        <td class="px-4 py-2 font-bold text-white align-top">{{ ex.title }}</td>
+                        <td class="px-4 py-2 align-top">
+                            {% if ex.trainingPartId2 == 11 %}Chest
+                            {% elif ex.trainingPartId2 == 12 %}Shoulder
+                            {% elif ex.trainingPartId2 == 13 %}Back
+                            {% elif ex.trainingPartId2 == 14 %}Glutes
+                            {% elif ex.trainingPartId2 == 15 %}Legs
+                            {% elif ex.trainingPartId2 == 16 %}Arms
+                            {% elif ex.trainingPartId2 == 17 %}Abs
+                            {% else %}General{% endif %}
+                        </td>
+                        <td class="px-4 py-2 text-gray-300 align-top">
+                            <span class="text-white font-medium">{{ ex.mainMuscleGroupName }}</span>
+                            {% if ex.auxiliaryMuscleGroupList %}
+                                <span class="text-gray-500">, </span>
+                                <span class="text-gray-400">
+                                {% for aux in ex.auxiliaryMuscleGroupList %}
+                                    {{ aux.muscleGroupName }}{% if not loop.last %}, {% endif %}
+                                {% endfor %}
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-2 align-top text-blue-300">
+                            {{ ex.equipment_name }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6" id="exercise-grid">
+        {% for ex in exercises %}
+        <a href="/exercise/{{ ex.id }}" 
+           class="exercise-card group block bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-green-500 transition shadow-lg hover:shadow-green-500/10"
+           data-title="{{ ex.title | lower }}"
+           data-muscle="{{ ex.trainingPartId2 }}">
+            
+            <div class="aspect-square bg-gray-900 overflow-hidden relative">
+                <img src="{{ ex.img | local_cache }}" alt="{{ ex.title }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" loading="lazy">
+                
+                <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition flex items-center justify-center">
+                    <svg class="w-10 h-10 text-white opacity-0 group-hover:opacity-100 transition transform scale-75 group-hover:scale-100" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+            </div>
+
+            <div class="p-4">
+                <h3 class="text-white font-bold text-sm md:text-base line-clamp-2 leading-tight min-h-[2.5rem]">{{ ex.title }}</h3>
+                <div class="mt-2 flex items-center gap-2">
+                    <span class="text-xs font-mono text-gray-500 bg-gray-900 px-2 py-0.5 rounded border border-gray-800">
+                        {% if ex.trainingPartId2 == 11 %}Chest
+                        {% elif ex.trainingPartId2 == 12 %}Shoulder
+                        {% elif ex.trainingPartId2 == 13 %}Back
+                        {% elif ex.trainingPartId2 == 14 %}Glutes
+                        {% elif ex.trainingPartId2 == 15 %}Legs
+                        {% elif ex.trainingPartId2 == 16 %}Arms
+                        {% elif ex.trainingPartId2 == 17 %}Abs
+                        {% else %}General{% endif %}
+                    </span>
+                    {% if ex.isBarbell == 1 %}
+                    <span class="text-xs text-blue-400 bg-blue-900/20 px-1.5 rounded">Barbell</span>
+                    {% endif %}
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+
+    <div id="no-results" class="hidden text-center py-20">
+        <div class="text-gray-500 text-xl">No exercises found.</div>
+        <p class="text-gray-600 text-sm mt-2">Try adjusting your search or filter.</p>
+    </div>
+
+</div>
+
+<script>
+    // Simple Client-Side Filtering
+    const searchInput = document.getElementById('search-input');
+    const cards = document.querySelectorAll('.exercise-card');
+    const tableRows = document.querySelectorAll('.exercise-row');
+    const noResults = document.getElementById('no-results');
+    let currentFilter = 'all';
+
+    // 1. Search Logic
+    searchInput.addEventListener('input', (e) => {
+        applyFilters(e.target.value.toLowerCase(), currentFilter);
+    });
+
+    // 2. Muscle Filter Logic
+    function filterByMuscle(muscleId, btnElement) {
+        currentFilter = muscleId;
+        
+        // Update Button Styles
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.remove('bg-green-600', 'text-white');
+            btn.classList.add('bg-gray-800', 'text-gray-300', 'border-gray-700');
+        });
+        btnElement.classList.remove('bg-gray-800', 'text-gray-300', 'border-gray-700');
+        btnElement.classList.add('bg-green-600', 'text-white');
+
+        // Apply
+        applyFilters(searchInput.value.toLowerCase(), currentFilter);
+    }
+
+    // Combined Filter Application
+    function applyFilters(searchTerm, muscleId) {
+        let visibleCount = 0;
+
+        // Filter Cards
+        cards.forEach(card => {
+            const title = card.getAttribute('data-title');
+            const cardMuscle = card.getAttribute('data-muscle');
+            
+            const matchesSearch = title.includes(searchTerm);
+            const matchesMuscle = (muscleId === 'all') || (cardMuscle === muscleId);
+
+            if (matchesSearch && matchesMuscle) {
+                card.style.display = 'block';
+                visibleCount++;
+            } else {
+                card.style.display = 'none';
+            }
+        });
+
+        // Filter Table Rows
+        tableRows.forEach(row => {
+            const title = row.getAttribute('data-title');
+            const rowMuscle = row.getAttribute('data-muscle');
+            
+            const matchesSearch = title.includes(searchTerm);
+            const matchesMuscle = (muscleId === 'all') || (rowMuscle === muscleId);
+
+            if (matchesSearch && matchesMuscle) {
+                row.style.display = 'table-row';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        if (visibleCount === 0) {
+            noResults.classList.remove('hidden');
+        } else {
+            noResults.classList.add('hidden');
+        }
+    }
+
+    function toggleView() {
+        const grid = document.getElementById('exercise-grid');
+        const table = document.getElementById('llm-table-view');
+        const btn = document.getElementById('view-toggle-btn');
+        
+        if (grid.classList.contains('hidden')) {
+            // Switch to Grid
+            grid.classList.remove('hidden');
+            table.classList.add('hidden');
+            btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg> Table View`;
+        } else {
+            // Switch to Table
+            grid.classList.add('hidden');
+            table.classList.remove('hidden');
+            btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg> Grid View`;
+        }
+    }
+
+    function copyTableToClipboard() {
+        const table = document.getElementById('exercises-table');
+        let text = "";
+        
+        // Headers
+        const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText);
+        text += headers.join('\t') + '\n';
+
+        // Rows (only visible ones)
+        const rows = Array.from(table.querySelectorAll('tbody tr')).filter(tr => tr.style.display !== 'none');
+        rows.forEach(row => {
+            const cells = Array.from(row.querySelectorAll('td')).map(td => td.innerText.replace(/\s+/g, ' ').trim());
+            text += cells.join('\t') + '\n';
+        });
+
+        navigator.clipboard.writeText(text).then(() => {
+            alert('Table copied to clipboard! You can now paste it into your LLM.');
+        });
+    }
+</script>
+{% endblock %}

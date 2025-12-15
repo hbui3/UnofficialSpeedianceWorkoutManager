@@ -1,0 +1,742 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="flex h-[calc(100vh-100px)] gap-6">
+    
+    <div class="w-1/3 bg-gray-800 rounded-lg p-4 flex flex-col border border-gray-700">
+        <h2 class="text-xl font-bold text-white mb-4">Library</h2>
+        <input type="text" id="search" placeholder="Search..." class="w-full bg-gray-900 border border-gray-600 p-2 rounded mb-4 text-white focus:border-green-500 outline-none">
+        
+        <div class="overflow-y-auto flex-grow space-y-2 pr-2" id="library-list">
+            {% for ex in library %}
+            <div class="bg-gray-700/50 p-3 rounded cursor-pointer hover:bg-gray-700 hover:border-l-4 hover:border-green-500 flex items-center gap-3 exercise-item transition-all" 
+                 onclick="addExerciseToPlan('{{ ex.id }}', '{{ ex.title|escape }}', '{{ ex.img | local_cache }}')">
+                <img src="{{ ex.img | local_cache }}" class="w-12 h-12 object-cover rounded bg-black">
+                <div>
+                    <div class="font-bold text-sm text-gray-200" data-title="{{ ex.title|lower }}">{{ ex.title }}</div>
+                    <div class="text-xs text-gray-500">
+                        {% if ex.trainingPartId2 == 11 %}Chest{% elif ex.trainingPartId2 == 15 %}Legs{% else %}General{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="w-2/3 bg-gray-800 rounded-lg p-4 flex flex-col border border-gray-700">
+        
+        <!-- Experimental Features -->
+        <details class="mb-4 bg-gray-900/50 rounded border border-gray-700 group">
+            <summary class="p-3 cursor-pointer font-bold text-purple-400 hover:text-purple-300 flex items-center gap-2 select-none">
+                <svg class="w-5 h-5 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                <span>Experimental AI Features</span>
+            </summary>
+            <div class="p-4 border-t border-gray-700 text-sm text-gray-400">
+                <p class="mb-3">
+                    Use AI to generate custom workouts. <br>
+                    1. Click <strong>Generate Prompt</strong> and describe your goal (e.g. "Leg day focus").<br>
+                    2. Copy the generated prompt to ChatGPT/Claude.<br>
+                    3. Paste the JSON response back here using <strong>Import JSON</strong>.
+                </p>
+                <div class="flex gap-3">
+                    <button onclick="openPromptGenerator()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded font-bold transition shadow-lg shadow-purple-900/20 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        Generate Prompt
+                    </button>
+                    <button onclick="openImportModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold transition shadow-lg shadow-blue-900/20 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        Import JSON
+                    </button>
+                </div>
+            </div>
+        </details>
+
+        <div class="mb-4 flex justify-between items-center border-b border-gray-700 pb-4">
+            <input type="text" id="plan-name" placeholder="Workout name" class="text-2xl bg-transparent font-bold text-white outline-none w-1/2 placeholder-gray-600">
+            <div class="flex gap-3">
+                <span id="total-stats" class="text-sm text-gray-400 self-center">0 Exercises</span>
+                <button onclick="saveWorkout()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-bold transition shadow-lg shadow-green-900/20">Save</button>
+            </div>
+        </div>
+        
+        <div id="builder-area" class="overflow-y-auto flex-grow space-y-6 pr-2">
+            <div id="empty-state" class="flex flex-col items-center justify-center h-full text-gray-500 opacity-50">
+                <svg class="w-16 h-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                <p>Select exercises from the library</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div id="import-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50">
+    <div class="bg-gray-800 p-6 rounded-lg w-1/2 border border-gray-700 shadow-2xl">
+        <h3 class="text-xl font-bold text-white mb-4">Import Workout JSON</h3>
+        <p class="text-gray-400 text-sm mb-2">Paste the JSON generated by the LLM below:</p>
+        <textarea id="import-json" class="w-full h-64 bg-gray-900 text-gray-300 p-4 rounded border border-gray-600 font-mono text-xs mb-4 focus:border-blue-500 outline-none"></textarea>
+        <div class="flex justify-end gap-3">
+            <button onclick="closeImportModal()" class="text-gray-400 hover:text-white px-4 py-2">Cancel</button>
+            <button onclick="processImport()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold">Import</button>
+        </div>
+    </div>
+</div>
+
+<!-- Prompt Modal -->
+<div id="prompt-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50">
+    <div class="bg-gray-800 p-6 rounded-lg w-2/3 h-3/4 flex flex-col border border-gray-700 shadow-2xl">
+        <h3 class="text-xl font-bold text-white mb-4" id="prompt-modal-title">Generate AI Prompt</h3>
+        
+        <!-- Step 1: Input -->
+        <div id="prompt-step-1" class="flex flex-col flex-grow">
+            <p class="text-gray-400 text-sm mb-2">Describe the workout you want (e.g., "30 min HIIT cardio", "Upper body strength focus"):</p>
+            <textarea id="user-request" class="w-full h-32 bg-gray-900 text-white p-4 rounded border border-gray-600 focus:border-purple-500 outline-none mb-4" placeholder="Enter your workout goal..."></textarea>
+            <div class="flex-grow"></div>
+            <div class="flex justify-end gap-3">
+                <button onclick="closePromptModal()" class="text-gray-400 hover:text-white px-4 py-2">Cancel</button>
+                <button onclick="generateFullPrompt()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded font-bold">Generate Full Prompt</button>
+            </div>
+        </div>
+
+        <!-- Step 2: Output -->
+        <div id="prompt-step-2" class="hidden flex-col flex-grow">
+            <p class="text-gray-400 text-sm mb-2">Copy this prompt to ChatGPT/Claude:</p>
+            <textarea id="prompt-text" class="w-full flex-grow bg-gray-900 text-gray-300 p-4 rounded border border-gray-600 font-mono text-xs mb-4 focus:border-purple-500 outline-none" readonly></textarea>
+            <div class="flex justify-end gap-3">
+                <button onclick="resetPromptModal()" class="text-gray-400 hover:text-white px-4 py-2">Back</button>
+                <button onclick="closePromptModal()" class="text-gray-400 hover:text-white px-4 py-2">Close</button>
+                <button onclick="copyPrompt()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded font-bold">Copy to Clipboard</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- KONFIGURATION DER PRESETS ---
+    // Definiert Ranges und Defaults basierend auf API Docs
+    const PRESET_RULES = {
+        '-1': { // Custom
+            label: "KG", step: 1, 
+            defW: 10, minW: 1, maxW: 100, 
+            defR: 10, minR: 1, maxR: 99, 
+            defRest: 60, minRest: 0, maxRest: 300 
+        },
+        '1': { // Gain Muscle
+            label: "RM", step: 1,
+            defW: 13, minW: 9, maxW: 13,   // RM Scope
+            defR: 12, minR: 8, maxR: 12,   // Reps Scope
+            defRest: 60, minRest: 45, maxRest: 120 
+        },
+        '3': { // Stamina
+            label: "RM", step: 1,
+            defW: 17, minW: 15, maxW: 20, 
+            defR: 15, minR: 13, maxR: 20, 
+            defRest: 45, minRest: 30, maxRest: 180 
+        },
+        '5': { // Strength
+            label: "RM", step: 1,
+            defW: 7, minW: 4, maxW: 9, 
+            defR: 6, minR: 2, maxR: 8, 
+            defRest: 90, minRest: 60, maxRest: 180 
+        }
+    };
+
+    let workoutData = [];
+    const existingData = {{ existing_workout | default(None) | tojson | safe }};
+    const fullLibrary = {{ library | tojson | safe }};
+    let currentTemplateId = existingData ? existingData.id : null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        // Search Logic
+        const searchInput = document.getElementById('search');
+        const libraryList = document.getElementById('library-list');
+        const items = libraryList.querySelectorAll('.exercise-item');
+
+        searchInput.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            items.forEach(item => {
+                const title = item.querySelector('[data-title]').getAttribute('data-title');
+                if (title.includes(term)) {
+                    item.classList.remove('hidden');
+                    item.classList.add('flex');
+                } else {
+                    item.classList.add('hidden');
+                    item.classList.remove('flex');
+                }
+            });
+        });
+
+        if (existingData) {
+            await loadExistingWorkout(existingData);
+        } else {
+            renderBuilder();
+        }
+    });
+    
+    // --- LADE LOGIK ---
+    async function fetchExerciseMetadata(groupId) {
+        try {
+            const res = await fetch(`/api/exercise/${groupId}`);
+            const details = await res.json();
+            return {
+                variants: details.actionLibraryList || [],
+                presets: details.templatePresetList || [],
+                isUnilateral: details.isLeftRight === 1 
+            };
+        } catch (e) {
+            return { variants: [], presets: [], isUnilateral: false };
+        }
+    }
+
+    async function loadExistingWorkout(data) {
+        document.getElementById('plan-name').value = data.name;
+
+        const groupIds = Array.from(new Set(data.actionLibraryList.map(apiEx => apiEx.groupId || apiEx.actionLibraryId)));
+        const metadataPromises = groupIds.map(id => fetchExerciseMetadata(id));
+        const allMetadata = await Promise.all(metadataPromises);
+        const metadataMap = allMetadata.reduce((acc, meta, index) => {
+            acc[groupIds[index]] = meta;
+            return acc;
+        }, {});
+
+        for (const apiEx of data.actionLibraryList) {
+            const groupId = apiEx.groupId || apiEx.actionLibraryId;
+            const meta = metadataMap[groupId] || { isUnilateral: false, variants: [], presets: [] };
+
+            const reps = (apiEx.setsAndReps || "").toString().split(',');
+            const weights = (apiEx.weights || "").toString().split(',');
+            const counters = (apiEx.counterweight2 || "").toString().split(',');
+            const modes = (apiEx.sportMode || "").toString().split(',');
+            const breaks = (apiEx.breakTime2 || "").toString().split(',');
+            const leftRights = (apiEx.leftRight || "").toString().split(',');
+            
+            // For unilateral exercises, the API returns L and R sets separately (e.g. L1, R1, L2, R2).
+            // Our UI model (workoutData) stores ALL sets (L and R) as individual objects in the `sets` array.
+            // The UI rendering loop then iterates over this array and displays them.
+            // So we should NOT filter by "Left" only. We should parse ALL sets.
+            
+            const setsParsed = reps.map((rep, i) => {
+                let w = 0;
+                const presetId = parseInt(apiEx.templatePresetId);
+                const isRM = presetId !== -1;
+                
+                if (isRM) {
+                    // Preset workouts: use counterweight2 (RM).
+                    w = parseInt(counters[i] || 0);
+                } else {
+                    // Custom workouts: API `weights` are stored as KG.
+                    const val = parseFloat(weights[i] || 0);
+                    if (!isNaN(val) && val > 0) {
+                        w = Math.round(val);
+                    }
+                }
+
+                return {
+                    reps: parseInt(rep),
+                    weight: w,
+                    mode: parseInt(modes[i] || 1),
+                    rest: parseInt(breaks[i] || 60),
+                    unit: 'reps' 
+                };
+            });
+
+            workoutData.push({
+                internalId: Date.now() + Math.random(),
+                groupId: parseInt(groupId), 
+                title: apiEx.title,
+                img: apiEx.img,
+                isUnilateral: meta.isUnilateral, 
+                variants: meta.variants, 
+                presets: meta.presets, 
+                selectedVariantId: parseInt(apiEx.actionLibraryId),
+                selectedPresetId: parseInt(apiEx.templatePresetId),
+                sets: setsParsed
+            });
+        }
+        renderBuilder();
+    }
+
+    // --- ADD EXERCISE ---
+    async function addExerciseToPlan(groupId, title, img) {
+        const tempId = Date.now();
+        try {
+            const meta = await fetchExerciseMetadata(groupId);
+            // Default Custom Settings
+            const rules = PRESET_RULES['-1']; 
+            
+            const newSetTemplate = {
+                reps: rules.defR, 
+                weight: rules.defW, 
+                mode: 1, 
+                rest: rules.defRest, 
+                unit: 'reps'
+            };
+
+            const startSets = [];
+            // 3 Sätze initial hinzufügen
+            for(let i=0; i<3; i++) {
+                startSets.push({...newSetTemplate});
+                if(meta.isUnilateral) startSets.push({...newSetTemplate});
+            }
+
+            const newEx = {
+                internalId: tempId, 
+                groupId: groupId,
+                title: title,
+                img: img,
+                isUnilateral: meta.isUnilateral, 
+                variants: meta.variants, 
+                presets: meta.presets,
+                selectedVariantId: meta.variants?.[0]?.id || groupId,
+                selectedPresetId: -1, // Custom Default
+                sets: startSets
+            };
+            
+            workoutData.push(newEx);
+            renderBuilder();
+            
+        } catch (e) {
+            alert("Error loading exercise details.");
+        }
+    }
+
+    // --- RENDER UI ---
+    function renderBuilder() {
+        const container = document.getElementById('builder-area');
+        container.innerHTML = '';
+        
+        if(workoutData.length === 0) {
+            container.innerHTML = `<div id="empty-state" class="flex flex-col items-center justify-center h-full text-gray-500 opacity-50"><p>Select exercises from the library</p></div>`;
+            document.getElementById('total-stats').innerText = "0 Exercises";
+            return;
+        }
+
+        document.getElementById('total-stats').innerText = `${workoutData.length} Exercises`;
+
+        workoutData.forEach((ex, exIndex) => {
+            const card = document.createElement('div');
+            card.className = 'bg-gray-900 rounded-lg border border-gray-700 overflow-hidden';
+            
+            // Rules für aktuelles Preset laden
+            const rules = PRESET_RULES[ex.selectedPresetId] || PRESET_RULES['-1'];
+
+            let variantsHtml = ex.variants.map(v => 
+                `<option value="${v.id}" ${v.id == ex.selectedVariantId ? 'selected' : ''}>Coach ${v.coach ? v.coach.name : 'Standard'}</option>`
+            ).join('');
+
+            let presetsHtml = `
+                <option value="-1" ${ex.selectedPresetId == -1 ? 'selected' : ''}>Customize (KG)</option>
+                <option value="1" ${ex.selectedPresetId == 1 ? 'selected' : ''}>Gain Muscle (RM)</option>
+                <option value="3" ${ex.selectedPresetId == 3 ? 'selected' : ''}>Stamina (RM)</option>
+                <option value="5" ${ex.selectedPresetId == 5 ? 'selected' : ''}>Strength (RM)</option>
+            `;
+
+            const unilateralWarning = ex.isUnilateral ? `<p class="text-xs text-yellow-400 mt-1">Unilateral: L/R Sets</p>` : '';
+
+            card.innerHTML = `
+                <div class="p-4 bg-gray-800 border-b border-gray-700 flex gap-4 items-start">
+                    <img src="${ex.img}" class="w-16 h-16 rounded object-cover bg-black">
+                    <div class="flex-grow">
+                        <div class="flex justify-between">
+                            <div class="flex items-center gap-2">
+                                <h3 class="font-bold text-lg text-white">${ex.title}</h3>
+                                <a href="/exercise/${ex.groupId}" target="_blank" class="text-gray-400 hover:text-blue-400 transition" title="Show Details">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </a>
+                            </div>
+                            <button onclick="removeEx(${exIndex})" class="text-red-500 hover:text-red-400 text-sm">✖ Remove</button>
+                        </div>
+                        <div class="flex gap-3 mt-2">
+                            <select onchange="updateEx(${exIndex}, 'selectedVariantId', this.value)" class="bg-gray-900 text-xs text-white border border-gray-600 rounded p-1 max-w-[150px]">${variantsHtml}</select>
+                            <select onchange="updateEx(${exIndex}, 'selectedPresetId', this.value)" class="bg-gray-900 text-xs text-green-400 border border-gray-600 rounded p-1 font-bold">${presetsHtml}</select>
+                        </div>
+                        ${unilateralWarning}
+                    </div>
+                </div>
+                
+                <div class="p-4">
+                    <div class="grid grid-cols-12 gap-2 text-xs uppercase text-gray-500 font-bold mb-2 px-1">
+                        <div class="col-span-1 text-center">#</div>
+                        <div class="col-span-3">Target (${rules.minR}-${rules.maxR})</div>
+                        <div class="col-span-2">${rules.label} (${rules.minW}-${rules.maxW})</div>
+                        <div class="col-span-3">Mode</div>
+                        <div class="col-span-2">Rest (${rules.minRest}-${rules.maxRest}s)</div>
+                        <div class="col-span-1"></div>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        ${ex.sets.map((set, sIdx) => {
+                            let setDisplay = "";
+                            let sideLabel = "";
+                            
+                            if (ex.isUnilateral) {
+                                // For unilateral, we display sets as L1, R1, L2, R2...
+                                // sIdx is the index in the sets array.
+                                // If sIdx is even (0, 2, 4...), it's Left.
+                                // If sIdx is odd (1, 3, 5...), it's Right.
+                                const realSetNum = Math.floor(sIdx / 2) + 1;
+                                const isLeft = sIdx % 2 === 0;
+                                setDisplay = `${realSetNum}`;
+                                sideLabel = isLeft ? `<span class="text-green-400 font-bold mr-1">L</span>` : `<span class="text-blue-400 font-bold mr-1">R</span>`;
+                            } else {
+                                setDisplay = sIdx + 1;
+                            }
+
+                            return `
+                            <div class="grid grid-cols-12 gap-2 items-center bg-gray-800/50 rounded p-1">
+                                <div class="col-span-1 text-center text-gray-400 font-mono flex justify-center items-center">${sideLabel}${setDisplay}</div>
+                                
+                                <div class="col-span-3 flex gap-1">
+                                    <input type="number" 
+                                           min="${rules.minR}" max="${rules.maxR}" step="1"
+                                           value="${set.reps}" 
+                                           onchange="validateAndSet(${exIndex}, ${sIdx}, 'reps', this)" 
+                                           class="w-full bg-gray-700 text-white text-center rounded border border-gray-600 p-1">
+                                    <button onclick="toggleUnit(${exIndex}, ${sIdx})" class="px-1 text-[10px] bg-gray-700 text-gray-400 rounded w-8 border border-gray-600">${set.unit === 'reps' ? 'Rep' : 'Sec'}</button>
+                                </div>
+                                <div class="col-span-2">
+                                    <input type="number" 
+                                           min="${rules.minW}" max="${rules.maxW}" step="${rules.step}"
+                                           value="${set.weight}" 
+                                           onchange="validateAndSet(${exIndex}, ${sIdx}, 'weight', this)" 
+                                           class="w-full bg-gray-700 ${ex.selectedPresetId != -1 ? 'text-yellow-400 font-bold' : 'text-white'} text-center rounded border border-gray-600 p-1">
+                                </div>
+                                <div class="col-span-3">
+                                    <select onchange="updateSet(${exIndex}, ${sIdx}, 'mode', this.value)" class="w-full bg-gray-700 text-white text-[10px] rounded border border-gray-600 p-1">
+                                        <option value="1" ${set.mode == 1 ? 'selected' : ''}>Standard</option>
+                                        <option value="2" ${set.mode == 2 ? 'selected' : ''}>Chains</option>
+                                        <option value="3" ${set.mode == 3 ? 'selected' : ''}>Eccentric</option>
+                                    </select>
+                                </div>
+                                <div class="col-span-2">
+                                    <input type="number" 
+                                           min="${rules.minRest}" max="${rules.maxRest}" step="5"
+                                           value="${set.rest}" 
+                                           onchange="validateAndSet(${exIndex}, ${sIdx}, 'rest', this)" 
+                                           class="w-full bg-gray-700 text-gray-300 text-center rounded border border-gray-600 p-1">
+                                </div>
+                                <div class="col-span-1 text-center">
+                                    <button onclick="removeSet(${exIndex}, ${sIdx})" class="text-red-500 hover:text-white text-xs font-bold px-2">✕</button>
+                                </div>
+                            </div>
+                            `;
+                        }).join('')}
+                    </div>
+                    <button onclick="addSet(${exIndex})" class="mt-3 text-xs flex items-center gap-1 text-blue-400 hover:text-white transition w-full justify-center border border-dashed border-gray-700 p-1 rounded hover:border-blue-400"><span class="text-lg">+</span> Add Set</button>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    // --- LOGIC ---
+    
+    // Validierung und Update
+    window.validateAndSet = (exIdx, sIdx, field, input) => {
+        const ex = workoutData[exIdx];
+        const rules = PRESET_RULES[ex.selectedPresetId] || PRESET_RULES['-1'];
+        let val = parseInt(input.value);
+
+        // Grenzen prüfen
+        let min = 0, max = 999;
+        if(field === 'weight') { min = rules.minW; max = rules.maxW; }
+        if(field === 'reps') { min = rules.minR; max = rules.maxR; }
+        if(field === 'rest') { min = rules.minRest; max = rules.maxRest; }
+
+        if (isNaN(val)) val = min;
+        if (val < min) val = min;
+        if (val > max) val = max;
+
+        // Wert zurückschreiben ins Input und Data
+        input.value = val; 
+        workoutData[exIdx].sets[sIdx][field] = val;
+    };
+
+    window.openPromptGenerator = () => {
+        document.getElementById('prompt-modal').classList.remove('hidden');
+        document.getElementById('prompt-modal').classList.add('flex');
+        resetPromptModal();
+    };
+
+    window.resetPromptModal = () => {
+        document.getElementById('prompt-step-1').classList.remove('hidden');
+        document.getElementById('prompt-step-1').classList.add('flex');
+        document.getElementById('prompt-step-2').classList.add('hidden');
+        document.getElementById('prompt-step-2').classList.remove('flex');
+        document.getElementById('prompt-modal-title').innerText = "Generate AI Prompt";
+    };
+
+    window.generateFullPrompt = () => {
+        const userRequest = document.getElementById('user-request').value;
+        if (!userRequest.trim()) return alert("Please describe your workout goal.");
+
+        const muscleMap = {
+            11: 'Chest',
+            12: 'Shoulder',
+            13: 'Back',
+            14: 'Glutes',
+            15: 'Legs',
+            16: 'Arms',
+            17: 'Abs'
+        };
+
+        let prompt = `You are a professional fitness coach using the Speediance Gym Monster.
+Your task is to create a custom workout plan based on the user's request: "${userRequest}"
+
+AVAILABLE EXERCISES:
+You must ONLY use exercises from the following list. Use the exact 'id' and 'title'.
+Format: [ID] Title (Focus: <Primary>, Target: <Main>[, <Aux>])
+
+`;
+
+        fullLibrary.forEach(ex => {
+            const focus = muscleMap[ex.trainingPartId2] || 'General';
+            let target = ex.mainMuscleGroupName || '';
+            if (ex.auxiliaryMuscleGroupList && ex.auxiliaryMuscleGroupList.length > 0) {
+                const aux = ex.auxiliaryMuscleGroupList.map(a => a.muscleGroupName).join(', ');
+                if (target) target += ', ' + aux;
+                else target = aux;
+            }
+            prompt += `[${ex.id}] ${ex.title} (Focus: ${focus}, Target: ${target})\n`;
+        });
+
+        prompt += `
+OUTPUT FORMAT:
+You must output a JSON object with the following structure:
+{
+  "name": "Workout Name",
+  "exercises": [
+    {
+      "id": "Exercise ID",
+      "sets": [
+        { "reps": 10, "weight": 10, "mode": 1, "rest": 60 }
+      ]
+    }
+  ]
+}
+`;
+
+        document.getElementById('prompt-text').value = prompt;
+        
+        // Switch to Step 2
+        document.getElementById('prompt-step-1').classList.add('hidden');
+        document.getElementById('prompt-step-1').classList.remove('flex');
+        document.getElementById('prompt-step-2').classList.remove('hidden');
+        document.getElementById('prompt-step-2').classList.add('flex');
+        document.getElementById('prompt-modal-title').innerText = "Your AI Prompt is Ready";
+    };
+
+    window.closePromptModal = () => {
+        document.getElementById('prompt-modal').classList.add('hidden');
+        document.getElementById('prompt-modal').classList.remove('flex');
+    };
+
+    window.copyPrompt = () => {
+        const copyText = document.getElementById("prompt-text");
+        copyText.select();
+        copyText.setSelectionRange(0, 99999); 
+        navigator.clipboard.writeText(copyText.value);
+        alert("Prompt copied to clipboard!");
+    };
+
+    window.openImportModal = () => {
+        document.getElementById('import-modal').classList.remove('hidden');
+        document.getElementById('import-modal').classList.add('flex');
+    };
+
+    window.closeImportModal = () => {
+        document.getElementById('import-modal').classList.add('hidden');
+        document.getElementById('import-modal').classList.remove('flex');
+    };
+
+    window.processImport = async () => {
+        const jsonStr = document.getElementById('import-json').value;
+        try {
+            const data = JSON.parse(jsonStr);
+            
+            if (data.name) {
+                document.getElementById('plan-name').value = data.name;
+            }
+
+            if (data.exercises && Array.isArray(data.exercises)) {
+                // Clear existing
+                workoutData = [];
+                
+                // Process sequentially to keep order
+                for (const ex of data.exercises) {
+                    const groupId = ex.id;
+                    const meta = await fetchExerciseMetadata(groupId);
+                    
+                    // Lookup title from fullLibrary
+                    const libEx = fullLibrary.find(e => e.id == groupId);
+                    const title = libEx ? libEx.title : (ex.title || "Unknown Exercise");
+
+                    // Map sets
+                    const setsParsed = ex.sets.map(s => ({
+                        reps: parseInt(s.reps),
+                        weight: parseInt(s.weight),
+                        mode: parseInt(s.mode || 1),
+                        rest: parseInt(s.rest || 60),
+                        unit: 'reps'
+                    }));
+
+                    // Handle Unilateral: If imported sets are just "sets", but exercise is unilateral,
+                    // we might need to duplicate them for L/R if the LLM didn't provide them explicitly.
+                    // However, our prompt asks for a simple list.
+                    // If the exercise is unilateral, the API expects L1, R1, L2, R2 order.
+                    // If the LLM provides 3 sets, and it's unilateral, we should probably assume these are "pairs" or just raw sets.
+                    // To be safe, let's assume the LLM provides "per round" sets.
+                    // So if it says 3 sets, we generate 3 pairs (6 sets) for unilateral.
+                    
+                    let finalSets = [];
+                    if (meta.isUnilateral) {
+                        setsParsed.forEach(s => {
+                            finalSets.push({...s}); // Left
+                            finalSets.push({...s}); // Right
+                        });
+                    } else {
+                        finalSets = setsParsed;
+                    }
+
+                    workoutData.push({
+                        internalId: Date.now() + Math.random(),
+                        groupId: parseInt(groupId),
+                        title: title,
+                        img: meta.variants?.[0]?.img || (libEx ? libEx.img : ""), // Fallback image
+                        isUnilateral: meta.isUnilateral,
+                        variants: meta.variants,
+                        presets: meta.presets,
+                        selectedVariantId: meta.variants?.[0]?.id || groupId, // Default to first variant
+                        selectedPresetId: -1, // Default to Custom
+                        sets: finalSets
+                    });
+                }
+                renderBuilder();
+                closeImportModal();
+                alert("Workout imported successfully!");
+            } else {
+                alert("Invalid JSON format: Missing 'exercises' array.");
+            }
+
+        } catch (e) {
+            console.error(e);
+            alert("Error parsing JSON: " + e.message);
+        }
+    };
+
+    window.updateEx = (exIdx, field, val) => {
+        // normalize numeric fields coming from <select>
+        if (field === 'selectedPresetId' || field === 'selectedVariantId') {
+            workoutData[exIdx][field] = parseInt(val);
+        } else {
+            workoutData[exIdx][field] = val;
+        }
+        
+        // Wenn Preset geändert wird -> Alle Sets auf neue Defaults setzen!
+        if(field === 'selectedPresetId') {
+            const rules = PRESET_RULES[String(workoutData[exIdx].selectedPresetId)] || PRESET_RULES['-1'];
+            workoutData[exIdx].sets.forEach(set => {
+                set.weight = rules.defW;
+                set.reps = rules.defR;
+                set.rest = rules.defRest;
+            });
+            renderBuilder();
+        }
+    };
+
+    window.updateSet = (exIdx, sIdx, field, val) => {
+        const ex = workoutData[exIdx];
+        ex.sets[sIdx][field] = val;
+        
+        // Sync L/R sets if unilateral?
+        // If user changes L, should R update automatically?
+        // Usually yes for weight/reps/mode/rest to keep them symmetric by default.
+        // But maybe user wants asymmetric?
+        // The UI shows them as separate rows, implying they can be different.
+        // However, `addSet` adds identical L/R.
+        // Let's keep them independent for now as per UI design.
+    };
+    
+    window.toggleUnit = (exIdx, sIdx) => {
+        const current = workoutData[exIdx].sets[sIdx].unit;
+        workoutData[exIdx].sets[sIdx].unit = current === 'reps' ? 'sec' : 'reps';
+        renderBuilder();
+    };
+
+    window.addSet = (exIdx) => {
+        const ex = workoutData[exIdx];
+        const rules = PRESET_RULES[ex.selectedPresetId] || PRESET_RULES['-1'];
+        
+        // Neue Sets bekommen IMMER die Defaults des aktuellen Presets
+        const newSetTemplate = {
+            reps: rules.defR, 
+            weight: rules.defW, 
+            mode: 1, 
+            rest: rules.defRest, 
+            unit: 'reps'
+        };
+        
+        // For UI model, we just push ONE set object.
+        // The save logic (api_client) will expand this to L/R if isUnilateral is true.
+        // Wait, the UI rendering loop iterates over `ex.sets`.
+        // If isUnilateral, the UI rendering loop does:
+        // if (ex.isUnilateral) {
+        //    const realSetNum = Math.floor(sIdx / 2) + 1;
+        //    ...
+        // }
+        // This implies the UI model expects 2 entries per set for unilateral?
+        // Let's check the rendering loop.
+        
+        ex.sets.push({...newSetTemplate});
+        if(ex.isUnilateral) ex.sets.push({...newSetTemplate});
+        
+        renderBuilder();
+    };
+
+    window.removeSet = (exIdx, sIdx) => {
+        const ex = workoutData[exIdx];
+        if(ex.sets.length <= (ex.isUnilateral ? 2 : 1)) return;
+        
+        if (ex.isUnilateral) {
+            // Remove both L and R sets
+            const pairIndex = Math.floor(sIdx / 2);
+            ex.sets.splice(pairIndex * 2, 2);
+        } else {
+            ex.sets.splice(sIdx, 1);
+        }
+        renderBuilder();
+    };
+    window.removeEx = (exIdx) => {
+        workoutData.splice(exIdx, 1);
+        renderBuilder();
+    };
+
+    window.saveWorkout = async () => {
+        const name = document.getElementById('plan-name').value || "Custom Workout";
+        if(workoutData.length === 0) return alert("Plan is empty!");
+
+        const payloadExercises = workoutData.map(ex => ({
+            groupId: ex.groupId, 
+            variant_id: ex.selectedVariantId,
+            preset_id: ex.selectedPresetId,
+            sets: ex.sets 
+        }));
+
+        const res = await fetch('/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                id: currentTemplateId, 
+                name: name, 
+                exercises: payloadExercises
+            })
+        });
+        
+        const json = await res.json();
+        if(json.status === 'success') {
+            window.location.href = '/';
+        } else {
+            alert("Error: " + json.message);
+        }
+    };
+</script>
+{% endblock %}
