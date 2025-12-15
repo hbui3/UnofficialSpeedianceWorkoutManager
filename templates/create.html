@@ -143,6 +143,7 @@
     let workoutData = [];
     const existingData = {{ existing_workout | default(None) | tojson | safe }};
     const fullLibrary = {{ library | tojson | safe }};
+    const userUnit = {{ unit | default(0) }}; // 0=Metric, 1=Imperial
     let currentTemplateId = existingData ? existingData.id : null;
 
     document.addEventListener('DOMContentLoaded', async () => {
@@ -305,12 +306,27 @@
         // Adjust limits for Custom (KG) based on Unilateral/Bilateral
         if (ex.selectedPresetId == -1) {
             rules = {...rules}; // Clone
-            if (ex.isUnilateral) {
-                rules.maxW = 50;
-                rules.minW = 4;
+            
+            // Handle Imperial
+            if (userUnit === 1) {
+                rules.label = "LBS";
+                // Convert limits to LBS roughly for UI limits
+                if (ex.isUnilateral) {
+                    rules.maxW = 110;
+                    rules.minW = 9;
+                } else {
+                    rules.maxW = 220;
+                    rules.minW = 15;
+                }
             } else {
-                rules.maxW = 100;
-                rules.minW = 7;
+                // Metric
+                if (ex.isUnilateral) {
+                    rules.maxW = 50;
+                    rules.minW = 4;
+                } else {
+                    rules.maxW = 100;
+                    rules.minW = 7;
+                }
             }
         }
         return rules;
