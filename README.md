@@ -36,7 +36,14 @@ A desktop web interface for managing Speediance Gym Monster workouts, viewing th
 ## Configuration
 
 1.  Go to **Settings** and log in with your Speediance account credentials.
+    *   **Region Selection**: Ensure you select the correct region (Global/EU/CN) where your account was created. Accounts are region-specific, and logging into the wrong region will fail.
 2.  **Unit System**: You can switch between Metric (KG) and Imperial (LBS) in the Settings page. This will adjust the Workout Builder limits and display units accordingly.
+
+## Security & Privacy
+
+Your privacy and security are paramount.
+- **Direct Connection**: All communication happens directly between your computer and the official Speediance servers. There are no intermediate servers or third-party data collection.
+- **Credential Safety**: Your email and password are **never stored**. They are used once to obtain a secure session token from Speediance, which is then saved locally on your machine (`config.json`) to keep you logged in.
 
 ## Usage Guide
 
