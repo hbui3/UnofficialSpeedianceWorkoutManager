@@ -16,15 +16,35 @@ class SpeedianceClient:
         if os.path.exists(self.config_file):
             with open(self.config_file, 'r') as f:
                 return json.load(f)
-        return {"user_id": "", "token": "", "region": "Global"}
+        return {"user_id": "", "token": "", "region": "Global", "unit": 0}
 
-    def save_config(self, user_id, token, region="Global"):
-        self.credentials = {"user_id": user_id, "token": token, "region": region}
+    def save_config(self, user_id, token, region="Global", unit=0):
+        self.credentials = {"user_id": user_id, "token": token, "region": region, "unit": unit}
         self.region = region
         self.host = "euapi.speediance.com" if self.region == "EU" else "api2.speediance.com"
         self.base_url = "https://" + self.host
         with open(self.config_file, 'w') as f:
             json.dump(self.credentials, f)
+
+    def update_unit(self, unit):
+        """Updates the unit setting on the server (0=Metric, 1=Imperial)"""
+        url = f"{self.base_url}/api/app/userinfo"
+        payload = {"unit": int(unit)}
+        try:
+            resp = requests.put(url, headers=self._get_headers(), json=payload)
+            if resp.status_code == 200:
+                # Update local config
+                self.save_config(
+                    self.credentials.get("user_id"), 
+                    self.credentials.get("token"), 
+                    self.credentials.get("region"),
+                    unit
+                )
+                return True, "Unit updated successfully"
+            else:
+                return False, f"Failed to update unit: {resp.text}"
+        except Exception as e:
+            return False, str(e)
 
     def login(self, email, password):
         # Common headers for login requests

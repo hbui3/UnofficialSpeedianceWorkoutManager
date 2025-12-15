@@ -129,12 +129,28 @@ def index():
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
     if request.method == 'POST':
-        client.save_config(request.form['user_id'], request.form['token'], request.form.get('region', 'Global'))
+        # Manual config save
+        client.save_config(
+            request.form['user_id'], 
+            request.form['token'], 
+            request.form.get('region', 'Global'),
+            int(request.form.get('unit', 0))
+        )
         flash("Settings saved!", "success")
         return redirect(url_for('index'))
     
     creds = client.load_config()
     return render_template('settings.html', creds=creds)
+
+@app.route('/settings/unit', methods=['POST'])
+def update_unit():
+    unit = request.form.get('unit')
+    success, msg = client.update_unit(unit)
+    if success:
+        flash("Unit preference updated!", "success")
+    else:
+        flash(f"Error updating unit: {msg}", "error")
+    return redirect(url_for('settings'))
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -353,7 +369,8 @@ def edit(code):
         return redirect(url_for('index'))
 
     library = client.get_library()
-    return render_template('create.html', library=library, existing_workout=workout)
+    unit = client.credentials.get("unit", 0)
+    return render_template('create.html', library=library, existing_workout=workout, unit=unit)
 
 
 @app.route('/create', methods=['GET', 'POST'])
@@ -374,10 +391,11 @@ def create():
             return jsonify({"status": "error", "message": result.get('message')})
 
     library = client.get_library()
+    unit = client.credentials.get("unit", 0)
     
     # HERE: We pass 'None' so the template knows: "No data to preload"
     # This has NO influence on the edit route, which sends its own data.
-    return render_template('create.html', library=library, existing_workout=None)
+    return render_template('create.html', library=library, existing_workout=None, unit=unit)
 
 @app.route('/delete/<int:id>')
 def delete(id):
