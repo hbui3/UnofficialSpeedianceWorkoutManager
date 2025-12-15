@@ -2,12 +2,6 @@
 
 A desktop web interface for managing Speediance Gym Monster workouts, viewing the exercise library, and generating AI-powered plans.
 
-## What's New in v0.8
-
-- **Unit Conversion Support**: Fully supports both Metric (kg) and Imperial (lbs) units. Switch your preference in the Settings menu, and the Workout Builder will automatically adjust limits and display values.
-- **Support the Developer**: Added a "Buy Me a Coffee" link for those who wish to support the project's development.
-- **UI Improvements**: Various layout tweaks and optimizations.
-
 ## Features
 
 - **Exercise Library**: Browse and filter all available exercises with local caching for speed.
