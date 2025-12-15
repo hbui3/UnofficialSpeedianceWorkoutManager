@@ -1,4 +1,4 @@
-# Speediance Desktop Manager
+# Unofficial Speediance Workout Manager
 
 A desktop web interface for managing Speediance Gym Monster workouts, viewing the exercise library, and generating AI-powered plans.
 
