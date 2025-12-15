@@ -21,6 +21,20 @@
             </div>
         </div>
     </nav>
+
+    <div class="bg-gray-800 border-b border-gray-700 p-4">
+        <div class="container mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
+            <p class="text-gray-300 text-sm">
+                If this tool helped you save time compared to the mobile app, I would appreciate your support! 
+                This helps with future updates and maintenance.
+            </p>
+            <a href="https://buymeacoffee.com/hbui3" target="_blank" class="flex-shrink-0 inline-flex items-center bg-[#FFDD00] hover:bg-[#FFDD00]/90 text-black font-bold py-2 px-4 rounded-lg transition-colors shadow-sm text-sm">
+                <span class="text-lg mr-2">☕</span>
+                Buy me a coffee
+            </a>
+        </div>
+    </div>
+
     <main class="container mx-auto p-4 flex-grow">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -31,18 +45,5 @@
         {% endwith %}
         {% block content %}{% endblock %}
     </main>
-
-    <footer class="bg-gray-900 border-t border-gray-800 p-8 mt-8">
-        <div class="container mx-auto text-center">
-            <p class="text-gray-400 mb-4 max-w-2xl mx-auto">
-                If this tool helped you save time compared to the mobile app, I would appreciate your support! 
-                This helps with future updates and maintenance.
-            </p>
-            <a href="https://buymeacoffee.com/hbui3" target="_blank" class="inline-flex items-center bg-[#FFDD00] hover:bg-[#FFDD00]/90 text-black font-bold py-3 px-6 rounded-lg transition-colors shadow-lg">
-                <span class="text-xl mr-2">☕</span>
-                Buy me a coffee
-            </a>
-        </div>
-    </footer>
 </body>
 </html>
