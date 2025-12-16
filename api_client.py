@@ -70,14 +70,14 @@ class SpeedianceClient:
         try:
             resp = requests.post(verify_url, json=verify_payload, headers=headers)
             if resp.status_code != 200:
-                return False, f"Verify failed: {resp.text}"
+                return False, "Verify failed", f"Status: {resp.status_code}\nResponse: {resp.text}"
             
             verify_data = resp.json().get('data', {})
             if verify_data.get('isExist') is False:
-                return False, "Account does not exist. Please register using the official Speediance mobile app first."
+                return False, "Account does not exist. Please register using the official Speediance mobile app first.", None
             
             if verify_data.get('hasPwd') is False:
-                return False, "Account exists but has no password set. Please set a password in the Speediance mobile app."
+                return False, "Account exists but has no password set. Please set a password in the Speediance mobile app.", None
 
             # Step 2: ByPass (Login with password)
             bypass_url = f"{self.base_url}/api/app/v2/login/byPass"
@@ -91,13 +91,13 @@ class SpeedianceClient:
                 
                 if token and user_id:
                     self.save_config(str(user_id), token, self.region)
-                    return True, "Login successful"
-                return False, "Token or appUserId not found in response"
+                    return True, "Login successful", None
+                return False, "Token or appUserId not found in response", f"Response: {resp.text}"
             else:
-                return False, f"Login failed: {resp.text}"
+                return False, "Login failed", f"Status: {resp.status_code}\nResponse: {resp.text}"
                 
         except Exception as e:
-            return False, str(e)
+            return False, "Connection Error", str(e)
 
     def logout(self):
         url = f"{self.base_url}/api/app/login/logout"

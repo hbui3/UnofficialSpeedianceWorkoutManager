@@ -169,12 +169,14 @@ def login():
     client.host = "euapi.speediance.com" if region == "EU" else "api2.speediance.com"
     client.base_url = "https://" + client.host
         
-    success, message = client.login(email, password)
+    success, message, debug_info = client.login(email, password)
     if success:
         flash("Login successful!", "success")
         return redirect(url_for('index'))
     else:
-        flash(f"Login failed: {message}", "error")
+        flash(message, "error")
+        if debug_info:
+            flash(debug_info, "debug")
         return redirect(url_for('settings'))
 
 @app.route('/logout')
