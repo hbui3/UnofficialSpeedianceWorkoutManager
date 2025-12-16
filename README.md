@@ -11,6 +11,18 @@ A desktop web interface for managing Speediance Gym Monster workouts, viewing th
 - **Offline Media**: Cache images and videos locally to reduce bandwidth and improve loading times.
 - **E2E Testing**: Includes a test suite to verify workout creation and API integration.
 
+## 📸 Screenshots
+
+<img width="1605" height="1212" alt="library" src="https://github.com/user-attachments/assets/1283c59a-933a-45f1-a26d-bfb78d6f47df" />
+
+<img width="1654" height="653" alt="dashboard" src="https://github.com/user-attachments/assets/7d0f89b2-face-43f1-bb00-a4d0c0744752" />
+
+<img width="1644" height="1236" alt="createplan" src="https://github.com/user-attachments/assets/20732d09-1468-43e7-a91e-a0142198dda6" />
+
+<img width="1655" height="1170" alt="settings" src="https://github.com/user-attachments/assets/f782ef92-48e6-431e-a491-fd000b299026" />
+
+<img width="705" height="536" alt="serverconsole" src="https://github.com/user-attachments/assets/539ba225-ab5b-4b04-8f22-71c2f9844069" />
+
 ## 📦 Installation
 
 ### Windows (Recommended)
