@@ -1,6 +1,8 @@
 name: Build Windows Exe
 
 on:
+  push:
+    branches: [ "main" ]
   workflow_dispatch: # Allows manual triggering
   release:
     types: [created] # Runs when you create a new Release
@@ -69,6 +71,12 @@ jobs:
       run: |
         cd dist
         zip -r UnofficialSpeedianceWorkoutManager_Mac.zip UnofficialSpeedianceWorkoutManager_Mac
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: UnofficialSpeedianceWorkoutManager-Mac
+        path: dist/UnofficialSpeedianceWorkoutManager_Mac.zip
 
     - name: Upload to Release
       uses: softprops/action-gh-release@v1
