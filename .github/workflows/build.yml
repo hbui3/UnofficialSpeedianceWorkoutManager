@@ -1,8 +1,6 @@
 name: Build Windows Exe
 
 on:
-  push:
-    branches: [ "main" ]
   workflow_dispatch: # Allows manual triggering
   release:
     types: [created] # Runs when you create a new Release
