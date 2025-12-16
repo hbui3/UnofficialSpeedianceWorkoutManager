@@ -1,12 +1,12 @@
-name: Build Windows Exe
+name: Build App
 
 on:
   workflow_dispatch: # Allows manual triggering
   release:
-    types: [created] # Runs when you create a new Release
+    types: [published] # Runs when you click "Publish release"
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
     permissions:
       contents: write
@@ -25,14 +25,14 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
 
-    - name: Build Exe
+    - name: Build Windows Exe
       run: |
         pyinstaller --noconsole --onefile --add-data "templates;templates" --add-data "static;static" --add-data "config.example.json;." --name "UnofficialSpeedianceWorkoutManager" app.py
 
-    - name: Upload Artifact
+    - name: Upload Windows Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: UnofficialSpeedianceWorkoutManager-Exe
+        name: Windows-Exe
         path: dist/UnofficialSpeedianceWorkoutManager.exe
 
     - name: Upload to Release
@@ -62,18 +62,18 @@ jobs:
 
     - name: Build Mac App
       run: |
-        # Note the colon (:) separator for Mac
+        # Mac uses colon (:) for add-data
         pyinstaller --noconsole --onefile --add-data "templates:templates" --add-data "static:static" --add-data "config.example.json:." --name "UnofficialSpeedianceWorkoutManager_Mac" app.py
 
-    - name: Zip the Mac App
+    - name: Zip Mac App
       run: |
         cd dist
         zip -r UnofficialSpeedianceWorkoutManager_Mac.zip UnofficialSpeedianceWorkoutManager_Mac
 
-    - name: Upload Artifact
+    - name: Upload Mac Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: UnofficialSpeedianceWorkoutManager-Mac
+        name: Mac-App
         path: dist/UnofficialSpeedianceWorkoutManager_Mac.zip
 
     - name: Upload to Release
