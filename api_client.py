@@ -317,6 +317,44 @@ class SpeedianceClient:
             print(f"Error fetching batch details: {e}")
             return []
 
+    def get_calendar_month(self, date_str):
+        """
+        Fetches calendar data for a specific month.
+        date_str: 'YYYY-MM'
+        """
+        url = f"{self.base_url}/api/app/v5/trainingCalendar/monthNew?date={date_str}&selectedDeviceType=0"
+        try:
+            resp = self._request('GET', url, headers=self._get_headers())
+            if resp.status_code == 401:
+                raise Exception("Unauthorized")
+            return resp.json().get('data', [])
+        except Exception as e:
+            if str(e) == "Unauthorized": raise e
+            print(f"Error fetching calendar: {e}")
+            return []
+
+    def schedule_workout(self, date_str, template_code, status):
+        """
+        Schedules or unschedules a workout.
+        status: 1 to add, 0 to remove
+        """
+        url = f"{self.base_url}/api/app/templateReservation"
+        payload = {
+            "status": status,
+            "deviceType": 1,
+            "thatDay": date_str,
+            "templateCode": template_code
+        }
+        try:
+            resp = self._request('POST', url, headers=self._get_headers(), json=payload)
+            if resp.status_code == 401:
+                raise Exception("Unauthorized")
+            return resp.json().get('data', False)
+        except Exception as e:
+            if str(e) == "Unauthorized": raise e
+            print(f"Error scheduling workout: {e}")
+            return False
+
     def save_workout(self, name, exercises, template_id=None): 
         """
         Speichert (ohne ID) oder Aktualisiert (mit ID).

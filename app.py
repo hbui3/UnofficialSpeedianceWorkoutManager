@@ -410,6 +410,46 @@ def api_exercise_detail(ex_id):
             return jsonify({"error": "Unauthorized"}), 401
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/calendar')
+def api_calendar():
+    """Returns calendar data for a specific month."""
+    if not client.credentials.get("token"):
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    date_str = request.args.get('date')
+    if not date_str:
+        return jsonify({"error": "Missing date parameter"}), 400
+        
+    try:
+        data = client.get_calendar_month(date_str)
+        return jsonify(data)
+    except Exception as e:
+        if str(e) == "Unauthorized":
+            return jsonify({"error": "Unauthorized"}), 401
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/schedule', methods=['POST'])
+def api_schedule():
+    """Schedules or unschedules a workout."""
+    if not client.credentials.get("token"):
+        return jsonify({"error": "Unauthorized"}), 401
+        
+    data = request.json
+    date_str = data.get('date')
+    template_code = data.get('templateCode')
+    status = data.get('status')
+    
+    if not date_str or not template_code or status is None:
+        return jsonify({"error": "Missing parameters"}), 400
+        
+    try:
+        success = client.schedule_workout(date_str, template_code, status)
+        return jsonify({"success": success})
+    except Exception as e:
+        if str(e) == "Unauthorized":
+            return jsonify({"error": "Unauthorized"}), 401
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/debug/last_response')
 def debug_last_response():
     """Returns the last API request/response info for debugging."""

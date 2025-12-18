@@ -6,6 +6,7 @@ A desktop web interface for managing Speediance Gym Monster workouts, viewing th
 
 - **Exercise Library**: Browse and filter all available exercises with local caching for speed.
 - **Workout Builder**: Create custom workouts with a drag-and-drop interface (or click-to-add).
+- **Training Calendar**: Schedule your workouts by dragging and dropping them onto a monthly calendar.
 - **AI Workout Generator (Experimental)**: Generate prompts for LLMs (ChatGPT/Claude) to create structured workout plans and import them directly via JSON.
 - **Workout Manager**: View, edit, and delete custom workouts.
 - **Offline Media**: Cache images and videos locally to reduce bandwidth and improve loading times.
@@ -86,7 +87,15 @@ Before you can manage workouts, you need to authenticate:
    - Choose presets (e.g., "Gain Muscle", "Strength") to auto-fill recommended ranges.
 4. **Save**: Enter a name and click **Save**. The workout will sync to your Speediance device.
 
-### 4. Advanced AI Features (Import/Export)
+### 4. Scheduling Workouts
+Manage your training schedule directly from the dashboard:
+1. **Add to Calendar**: Drag any workout from your "My Workouts" list and drop it onto a date in the calendar.
+2. **Reschedule**: Drag an already scheduled workout from one date to another to move it.
+3. **Remove**: Click the **×** icon on a calendar entry to remove it.
+   - *Note: Official Speediance Programs (shown in blue) are managed by the system and cannot be moved or deleted here.*
+4. **Past Dates**: The system prevents scheduling or moving workouts to dates in the past.
+
+### 5. Advanced AI Features (Import/Export)
 Use the power of LLMs to design workouts:
 1. Expand the **More Features (AI & Import/Export)** section in the Workout Builder.
 2. Click **Generate Prompt**.

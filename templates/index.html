@@ -1,15 +1,24 @@
 {% extends "layout.html" %}
 {% block content %}
+<!-- Workouts Section -->
 <div class="flex justify-between items-center mb-6">
     <h1 class="text-3xl font-bold text-white">My Workouts</h1>
-    <a href="/create" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">New Workout</a>
+    <a href="/create" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow hover:shadow-lg transition">New Workout</a>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
     {% for w in workouts %}
-    <div class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 relative group">
+    <div class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 relative group cursor-move hover:border-blue-500 transition-colors duration-200" 
+         draggable="true" 
+         ondragstart="drag(event)" 
+         data-code="{{ w.code }}" 
+         data-name="{{ w.name }}">
+        
         <div class="p-5">
-            <h3 class="text-xl font-bold text-white mb-2">{{ w.name }}</h3>
+            <div class="flex justify-between items-start">
+                <h3 class="text-xl font-bold text-white mb-2 truncate pr-2">{{ w.name }}</h3>
+                <span class="text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded">Drag me</span>
+            </div>
             <div class="text-sm text-gray-400 space-y-1">
                 <p>Volume: {{ w.totalCapacity }} {{ 'lbs' if unit == 1 else 'kg' }}</p>
                 <p>Duration: ~{{ w.durationMinute }} min</p>
@@ -17,19 +26,410 @@
             </div>
             <div class="mt-4 flex space-x-2">
                 <a href="/delete/{{ w.id }}" onclick="return confirm('Really delete?')" class="text-red-400 hover:text-red-300 text-sm">Delete</a>
-                <a href="/edit/{{ w.code }}" class="text-blue-400 hover:text-blue-300 text-sm">edit</a>
+                <a href="/edit/{{ w.code }}" class="text-blue-400 hover:text-blue-300 text-sm">Edit</a>
             </div>
         </div>
         <div class="bg-gray-900 p-2 flex space-x-2 overflow-hidden h-16 opacity-50 group-hover:opacity-100 transition">
             {% for group in w.actionInfoList %}
                 {% if group[0] is defined %}
-                    <img src="{{ group[0].img }}" class="h-full rounded">
+                    <img src="{{ group[0].img }}" class="h-full rounded object-cover w-12">
                 {% endif %}
             {% endfor %}
         </div>
     </div>
     {% else %}
-    <p class="text-gray-500">No workouts found.</p>
+    <p class="text-gray-500 col-span-full text-center py-10">No workouts found. Create one to get started!</p>
     {% endfor %}
 </div>
+
+<!-- Instructions Section -->
+<div class="bg-gray-800 rounded-lg p-6 mb-8 border border-gray-700 shadow-lg">
+    <div class="flex items-start gap-4">
+        <div class="bg-blue-600/20 p-3 rounded-full text-blue-400">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        </div>
+        <div class="space-y-3">
+            <div>
+                <h3 class="text-lg font-bold text-white mb-1">How to Schedule</h3>
+                <p class="text-gray-400 text-sm leading-relaxed">
+                    <span class="text-white font-semibold">Add:</span> Drag any workout card from the list above and drop it onto a date.
+                    <br>
+                    <span class="text-white font-semibold">Move:</span> Drag a scheduled workout from one date to another to reschedule it.
+                    <br>
+                    <span class="text-white font-semibold">Remove:</span> Click the <span class="text-red-400 font-bold px-1">&times;</span> icon on a calendar entry.
+                </p>
+            </div>
+            <div>
+                <h3 class="text-lg font-bold text-white mb-1">Workout Types</h3>
+                <ul class="text-gray-400 text-sm list-disc list-inside space-y-1">
+                    <li>
+                        <span class="text-white">White entries:</span> Custom workouts you scheduled. These can be moved or deleted.
+                    </li>
+                    <li>
+                        <span class="text-blue-300">Blue entries:</span> Official Speediance Programs. These are fixed by the system and cannot be moved or deleted here.
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Calendar Section -->
+<div class="mb-10">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+            <span>📅</span> Training Calendar
+        </h2>
+        <div class="flex items-center space-x-4 bg-gray-800 p-2 rounded-lg">
+            <button id="prevMonth" class="text-gray-400 hover:text-white px-2 py-1 hover:bg-gray-700 rounded transition">
+                &lt; Prev
+            </button>
+            <span id="currentMonthLabel" class="text-xl font-semibold text-white min-w-[150px] text-center"></span>
+            <button id="nextMonth" class="text-gray-400 hover:text-white px-2 py-1 hover:bg-gray-700 rounded transition">
+                Next &gt;
+            </button>
+        </div>
+    </div>
+    
+    <div class="bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-700">
+        <!-- Weekday Headers -->
+        <div class="grid grid-cols-7 gap-2 mb-2 text-center text-gray-400 font-bold uppercase text-sm tracking-wider">
+            <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+        </div>
+        
+        <!-- Calendar Grid -->
+        <div id="calendarGrid" class="grid grid-cols-7 gap-2 auto-rows-fr">
+            <!-- Calendar days will be injected here -->
+        </div>
+    </div>
+</div>
+
+<style>
+    .calendar-day {
+        min-height: 120px;
+        transition: all 0.2s;
+    }
+    .calendar-day.drag-over {
+        background-color: rgba(59, 130, 246, 0.2); /* blue-500 with opacity */
+        border-color: #3b82f6;
+    }
+    .calendar-day.today {
+        background-color: rgba(55, 65, 81, 0.8); /* gray-700 */
+        border: 1px solid #4b5563; /* gray-600 */
+    }
+    .workout-pill {
+        font-size: 0.75rem;
+        line-height: 1rem;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background-color: #1f2937; /* gray-800 */
+        border: 1px solid #374151; /* gray-700 */
+        margin-bottom: 2px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: default;
+    }
+    .workout-pill:hover {
+        background-color: #374151; /* gray-700 */
+    }
+    .delete-schedule-btn {
+        opacity: 0;
+        color: #ef4444; /* red-500 */
+        cursor: pointer;
+        margin-left: 4px;
+        font-weight: bold;
+    }
+    .workout-pill:hover .delete-schedule-btn {
+        opacity: 1;
+    }
+</style>
+
+<script>
+    let currentDate = new Date();
+    
+    function initCalendar() {
+        renderCalendarHeader();
+        fetchCalendarData();
+    }
+
+    function renderCalendarHeader() {
+        const options = { year: 'numeric', month: 'long' };
+        document.getElementById('currentMonthLabel').textContent = currentDate.toLocaleDateString('en-US', options);
+    }
+
+    function getMonthString(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        return `${year}-${month}`;
+    }
+
+    async function fetchCalendarData() {
+        const dateStr = getMonthString(currentDate);
+        const grid = document.getElementById('calendarGrid');
+        grid.innerHTML = '<div class="col-span-7 text-center text-gray-500 py-10">Loading...</div>';
+
+        try {
+            const response = await fetch(`/api/calendar?date=${dateStr}`);
+            if (response.status === 401) {
+                window.location.href = '/login';
+                return;
+            }
+            const data = await response.json();
+            renderCalendarGrid(data);
+        } catch (error) {
+            console.error('Error fetching calendar:', error);
+            grid.innerHTML = '<div class="col-span-7 text-center text-red-500 py-10">Error loading calendar</div>';
+        }
+    }
+
+    function renderCalendarGrid(daysData) {
+        const grid = document.getElementById('calendarGrid');
+        grid.innerHTML = '';
+
+        if (!daysData || daysData.length === 0) return;
+
+        // Determine start day of the week (0=Sun, 1=Mon, etc.)
+        const firstDayDate = new Date(daysData[0].date);
+        const startDay = firstDayDate.getDay();
+
+        // Add empty cells for previous month days
+        for (let i = 0; i < startDay; i++) {
+            const emptyCell = document.createElement('div');
+            emptyCell.className = 'bg-transparent p-2';
+            grid.appendChild(emptyCell);
+        }
+
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        daysData.forEach(day => {
+            const cell = document.createElement('div');
+            const isToday = day.date === todayStr;
+            
+            cell.className = `calendar-day bg-gray-700/30 rounded border border-gray-700/50 p-2 flex flex-col ${isToday ? 'today' : ''}`;
+            cell.setAttribute('ondragover', 'allowDrop(event)');
+            cell.setAttribute('ondrop', 'drop(event)');
+            cell.setAttribute('ondragleave', 'dragLeave(event)');
+            cell.dataset.date = day.date;
+
+            // Date number
+            const dateNum = new Date(day.date).getDate();
+            cell.innerHTML = `<div class="text-right text-sm ${isToday ? 'text-blue-400 font-bold' : 'text-gray-400'} mb-1">${dateNum}</div>`;
+
+            // Workouts list
+            const workoutsContainer = document.createElement('div');
+            workoutsContainer.className = 'flex-1 flex flex-col gap-1 overflow-y-auto max-h-[100px]';
+            
+            if (day.trainingPlanList && day.trainingPlanList.length > 0) {
+                day.trainingPlanList.forEach(plan => {
+                    const pill = document.createElement('div');
+                    const isProgram = plan.isReservation === false; // Programs are not reservations
+
+                    if (isProgram) {
+                        // Style for Programs (Blue-ish, no delete)
+                        pill.className = 'workout-pill text-xs text-blue-200 bg-blue-900/40 border-blue-800/50 truncate';
+                        pill.title = `Program: ${plan.exclusivePlanName || plan.title}`;
+                    } else {
+                        // Style for Custom Scheduled (Standard, with delete)
+                        pill.className = 'workout-pill text-xs text-white truncate cursor-move';
+                        pill.title = plan.title;
+                        pill.draggable = true;
+                        pill.ondragstart = (e) => dragExisting(e, day.date, plan.code || plan.templateCode, plan.title);
+                    }
+                    
+                    const titleSpan = document.createElement('span');
+                    titleSpan.textContent = plan.title;
+                    titleSpan.className = 'truncate flex-1';
+                    
+                    pill.appendChild(titleSpan);
+
+                    // Only add delete button for user reservations
+                    if (!isProgram) {
+                        const delBtn = document.createElement('span');
+                        delBtn.innerHTML = '&times;';
+                        delBtn.className = 'delete-schedule-btn hover:text-red-300';
+                        delBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            deleteScheduledWorkout(day.date, plan.code || plan.templateCode); // API might return code or templateCode
+                        };
+                        pill.appendChild(delBtn);
+                    }
+
+                    workoutsContainer.appendChild(pill);
+                });
+            }
+            
+            cell.appendChild(workoutsContainer);
+            grid.appendChild(cell);
+        });
+    }
+
+    // --- Drag and Drop Logic ---
+
+    function drag(ev) {
+        ev.dataTransfer.setData("text/plain", JSON.stringify({
+            type: 'new',
+            code: ev.target.dataset.code,
+            name: ev.target.dataset.name
+        }));
+        ev.dataTransfer.effectAllowed = "copy";
+    }
+
+    function dragExisting(ev, date, code, name) {
+        ev.dataTransfer.setData("text/plain", JSON.stringify({
+            type: 'move',
+            originalDate: date,
+            code: code,
+            name: name
+        }));
+        ev.dataTransfer.effectAllowed = "move";
+        ev.stopPropagation();
+    }
+
+    function allowDrop(ev) {
+        ev.preventDefault();
+        ev.currentTarget.classList.add('drag-over');
+    }
+
+    function dragLeave(ev) {
+        ev.currentTarget.classList.remove('drag-over');
+    }
+
+    async function drop(ev) {
+        ev.preventDefault();
+        ev.currentTarget.classList.remove('drag-over');
+        
+        const dataStr = ev.dataTransfer.getData("text/plain");
+        if (!dataStr) return;
+        
+        const data = JSON.parse(dataStr);
+        const targetDate = ev.currentTarget.dataset.date;
+        
+        if (!targetDate || !data.code) return;
+
+        // Prevent scheduling in the past
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const todayStr = `${year}-${month}-${day}`;
+
+        if (targetDate < todayStr) {
+            alert('Cannot schedule or move workouts to a past date.');
+            return;
+        }
+
+        if (data.type === 'move') {
+            if (data.originalDate === targetDate) return; // Dropped on same day
+
+            // 1. Delete from old date
+            try {
+                const delResp = await fetch('/api/schedule', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        date: data.originalDate,
+                        templateCode: data.code,
+                        status: 0 // Remove
+                    })
+                });
+                const delResult = await delResp.json();
+                if (!delResult.success) {
+                    alert('Failed to move workout (could not remove from original date): ' + (delResult.error || 'Unknown error'));
+                    return;
+                }
+
+                // 2. Add to new date
+                const addResp = await fetch('/api/schedule', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        date: targetDate,
+                        templateCode: data.code,
+                        status: 1 // Add
+                    })
+                });
+                const addResult = await addResp.json();
+                
+                if (addResult.success) {
+                    fetchCalendarData();
+                } else {
+                    alert('Failed to move workout (removed from old date but failed to add to new): ' + (addResult.error || 'Unknown error'));
+                    fetchCalendarData(); // Refresh anyway
+                }
+
+            } catch (error) {
+                console.error('Error moving workout:', error);
+                alert('Error moving workout');
+            }
+
+        } else {
+            // New schedule
+            try {
+                const response = await fetch('/api/schedule', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        date: targetDate,
+                        templateCode: data.code,
+                        status: 1 // Add
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    fetchCalendarData(); // Reload calendar
+                } else {
+                    alert('Failed to schedule workout: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error scheduling:', error);
+                alert('Error scheduling workout');
+            }
+        }
+    }
+
+    async function deleteScheduledWorkout(date, templateCode) {
+        if (!confirm('Remove this workout from the schedule?')) return;
+
+        try {
+            const response = await fetch('/api/schedule', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    date: date,
+                    templateCode: templateCode,
+                    status: 0 // Remove
+                })
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                fetchCalendarData(); // Reload calendar
+            } else {
+                alert('Failed to remove workout: ' + (result.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error removing workout:', error);
+            alert('Error removing workout');
+        }
+    }
+
+    // --- Navigation ---
+
+    document.getElementById('prevMonth').addEventListener('click', () => {
+        currentDate.setMonth(currentDate.getMonth() - 1);
+        initCalendar();
+    });
+
+    document.getElementById('nextMonth').addEventListener('click', () => {
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        initCalendar();
+    });
+
+    // Initialize
+    initCalendar();
+</script>
 {% endblock %}
