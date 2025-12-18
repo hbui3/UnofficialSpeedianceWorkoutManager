@@ -86,9 +86,9 @@ Before you can manage workouts, you need to authenticate:
    - Choose presets (e.g., "Gain Muscle", "Strength") to auto-fill recommended ranges.
 4. **Save**: Enter a name and click **Save**. The workout will sync to your Speediance device.
 
-### 4. Experimental AI Features
+### 4. Advanced AI Features (Import/Export)
 Use the power of LLMs to design workouts:
-1. Expand the **Experimental AI Features** section in the Workout Builder.
+1. Expand the **More Features (AI & Import/Export)** section in the Workout Builder.
 2. Click **Generate Prompt**.
 3. Describe your goal (e.g., "45 min chest and triceps hypertrophy").
 4. Click **Generate Full Prompt** and copy the result.
@@ -97,7 +97,23 @@ Use the power of LLMs to design workouts:
 7. Click **Import JSON** in the Speediance Desktop app and paste the code.
 8. The workout will be automatically built with the correct exercises and settings.
 
-### 5. Offline Mode
+**Pro Tip:** You can also use **Export JSON** to save your current workout to a file or share it with an AI to ask for adjustments (e.g., "Make this workout harder" or "Swap bench press for pushups").
+
+#### Customizing AI Behavior
+You can define global rules for the AI (e.g., "Always use metric units", "Prefer dumbbells over cables", "Include 2 min rest").
+1. Go to **Settings**.
+2. Expand **Advanced: Manual Configuration**.
+3. Enter your preferences in the **Custom AI Instructions** field.
+4. Click **Save Manual Config**.
+These instructions will be automatically appended to every prompt you generate.
+
+### 5. Debugging Tools
+If you encounter issues (like empty libraries or connection errors):
+1. Look for the **Floating Code Button (</>)** in the bottom-right corner of the screen.
+2. Click it to view the **Last API Response**.
+3. This will show the raw data returned by the server, which is helpful for troubleshooting session issues or reporting bugs.
+
+### 6. Offline Mode
 To speed up the interface:
 1. Go to **Settings**.
 2. Click **Download All Assets**.
