@@ -72,11 +72,9 @@
                     <label class="block text-sm font-bold mb-2 text-gray-300">Unit (0=Metric, 1=Imperial)</label>
                     <input type="number" name="unit" value="{{ creds.unit }}" class="w-full p-2 bg-gray-700 rounded text-white border border-gray-600 font-mono text-sm">
                 </div>
-                <div class="mb-6">
-                    <label class="block text-sm font-bold mb-2 text-gray-300">Custom AI Instructions</label>
-                    <textarea name="custom_instruction" class="w-full p-2 bg-gray-700 rounded text-white border border-gray-600 font-mono text-sm h-24" placeholder="e.g. Always include 2 minutes rest between sets. Prefer compound movements.">{{ creds.custom_instruction }}</textarea>
-                    <p class="text-xs text-gray-500 mt-2">These instructions will be appended to every AI prompt generated in the Create Plan page.</p>
-                </div>
+                <!-- Custom Instruction moved to Create Page Modal -->
+                <input type="hidden" name="custom_instruction" value="{{ creds.custom_instruction }}">
+                
                 <button type="submit" class="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded border border-gray-600">Save Manual Config</button>
             </form>
         </div>

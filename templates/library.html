@@ -21,8 +21,15 @@
         </div>
     </div>
 
+    <div class="flex flex-wrap gap-2 mb-4 justify-center md:justify-start">
+        <button onclick="filterByCategory('all', this)" class="cat-btn active px-4 py-2 rounded-full text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition">All Categories</button>
+        {% for cat in categories %}
+        <button onclick="filterByCategory('{{ cat.id }}', this)" class="cat-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">{{ cat.name }}</button>
+        {% endfor %}
+    </div>
+
     <div class="flex flex-wrap gap-2 mb-8 justify-center md:justify-start">
-        <button onclick="filterByMuscle('all', this)" class="filter-btn active px-4 py-2 rounded-full text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition">All</button>
+        <button onclick="filterByMuscle('all', this)" class="filter-btn active px-4 py-2 rounded-full text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition">All Muscles</button>
         <button onclick="filterByMuscle('11', this)" class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">Chest</button>
         <button onclick="filterByMuscle('13', this)" class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">Back</button>
         <button onclick="filterByMuscle('12', this)" class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">Shoulders</button>
@@ -66,9 +73,12 @@
                 </thead>
                 <tbody class="bg-gray-800 divide-y divide-gray-700">
                     {% for ex in exercises %}
-                    <tr class="hover:bg-gray-700/50 exercise-row cursor-pointer" onclick="window.location.href='/exercise/{{ ex.id }}'" data-title="{{ ex.title | lower }}" data-muscle="{{ ex.trainingPartId2 }}">
+                    <tr class="hover:bg-gray-700/50 exercise-row cursor-pointer" onclick="window.location.href='/exercise/{{ ex.id }}'" data-title="{{ ex.title | lower }}" data-muscle="{{ ex.trainingPartId2 }}" data-category="{{ ex.category_id }}">
                         <td class="px-4 py-2 font-mono text-xs text-gray-500 align-top">{{ ex.id }}</td>
-                        <td class="px-4 py-2 font-bold text-white align-top">{{ ex.title }}</td>
+                        <td class="px-4 py-2 font-bold text-white align-top">
+                            {{ ex.title }}
+                            <div class="text-xs text-gray-500 font-normal">{{ ex.category_name }}</div>
+                        </td>
                         <td class="px-4 py-2 align-top">
                             {% if ex.trainingPartId2 == 11 %}Chest
                             {% elif ex.trainingPartId2 == 12 %}Shoulder
@@ -105,7 +115,8 @@
         <a href="/exercise/{{ ex.id }}" 
            class="exercise-card group block bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-green-500 transition shadow-lg hover:shadow-green-500/10"
            data-title="{{ ex.title | lower }}"
-           data-muscle="{{ ex.trainingPartId2 }}">
+           data-muscle="{{ ex.trainingPartId2 }}"
+           data-category="{{ ex.category_id }}">
             
             <div class="aspect-square bg-gray-900 overflow-hidden relative">
                 <img src="{{ ex.img | local_cache }}" alt="{{ ex.title }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" loading="lazy">
@@ -151,10 +162,11 @@
     const tableRows = document.querySelectorAll('.exercise-row');
     const noResults = document.getElementById('no-results');
     let currentFilter = 'all';
+    let currentCategory = 'all';
 
     // 1. Search Logic
     searchInput.addEventListener('input', (e) => {
-        applyFilters(e.target.value.toLowerCase(), currentFilter);
+        applyFilters(e.target.value.toLowerCase(), currentFilter, currentCategory);
     });
 
     // 2. Muscle Filter Logic
@@ -170,22 +182,40 @@
         btnElement.classList.add('bg-green-600', 'text-white');
 
         // Apply
-        applyFilters(searchInput.value.toLowerCase(), currentFilter);
+        applyFilters(searchInput.value.toLowerCase(), currentFilter, currentCategory);
+    }
+
+    // 3. Category Filter Logic
+    function filterByCategory(catId, btnElement) {
+        currentCategory = catId;
+        
+        // Update Button Styles
+        document.querySelectorAll('.cat-btn').forEach(btn => {
+            btn.classList.remove('bg-blue-600', 'text-white');
+            btn.classList.add('bg-gray-800', 'text-gray-300', 'border-gray-700');
+        });
+        btnElement.classList.remove('bg-gray-800', 'text-gray-300', 'border-gray-700');
+        btnElement.classList.add('bg-blue-600', 'text-white');
+
+        // Apply
+        applyFilters(searchInput.value.toLowerCase(), currentFilter, currentCategory);
     }
 
     // Combined Filter Application
-    function applyFilters(searchTerm, muscleId) {
+    function applyFilters(searchTerm, muscleId, catId) {
         let visibleCount = 0;
 
         // Filter Cards
         cards.forEach(card => {
             const title = card.getAttribute('data-title');
             const cardMuscle = card.getAttribute('data-muscle');
+            const cardCategory = card.getAttribute('data-category');
             
             const matchesSearch = title.includes(searchTerm);
             const matchesMuscle = (muscleId === 'all') || (cardMuscle === muscleId);
+            const matchesCategory = (catId === 'all') || (cardCategory === catId);
 
-            if (matchesSearch && matchesMuscle) {
+            if (matchesSearch && matchesMuscle && matchesCategory) {
                 card.style.display = 'block';
                 visibleCount++;
             } else {
@@ -197,11 +227,13 @@
         tableRows.forEach(row => {
             const title = row.getAttribute('data-title');
             const rowMuscle = row.getAttribute('data-muscle');
+            const rowCategory = row.getAttribute('data-category');
             
             const matchesSearch = title.includes(searchTerm);
             const matchesMuscle = (muscleId === 'all') || (rowMuscle === muscleId);
+            const matchesCategory = (catId === 'all') || (rowCategory === catId);
 
-            if (matchesSearch && matchesMuscle) {
+            if (matchesSearch && matchesMuscle && matchesCategory) {
                 row.style.display = 'table-row';
             } else {
                 row.style.display = 'none';

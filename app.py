@@ -149,6 +149,22 @@ def settings():
     creds = client.load_config()
     return render_template('settings.html', creds=creds)
 
+@app.route('/settings/custom_instruction', methods=['POST'])
+def update_custom_instruction():
+    data = request.json
+    instruction = data.get('instruction', '')
+    
+    # Update only the instruction, keep other settings
+    creds = client.credentials
+    client.save_config(
+        creds.get('user_id'), 
+        creds.get('token'), 
+        creds.get('region'),
+        creds.get('unit', 0),
+        instruction
+    )
+    return jsonify({"status": "success"})
+
 @app.route('/settings/unit', methods=['POST'])
 def update_unit():
     unit = request.form.get('unit')
@@ -313,6 +329,7 @@ def library():
     try:
         exercises = client.get_library()
         accessories = client.get_accessories()
+        categories = client.get_categories()
     except Exception as e:
         if str(e) == "Unauthorized":
             client.logout()
@@ -321,6 +338,7 @@ def library():
         flash(f"Error loading library: {e}", "error")
         exercises = []
         accessories = []
+        categories = []
 
     accessory_map = {str(acc['id']): acc['name'] for acc in accessories}
     
@@ -330,7 +348,7 @@ def library():
         names = [accessory_map.get(aid, 'Standard') for aid in acc_ids if aid]
         ex['equipment_name'] = ', '.join(names) if names else 'Standard'
         
-    return render_template('library.html', exercises=exercises)
+    return render_template('library.html', exercises=exercises, categories=categories)
 
 @app.route('/library/refresh')
 def refresh_library():
@@ -405,6 +423,7 @@ def edit(code):
         # Load workout details via code
         workout = client.get_workout_detail(code)
         library = client.get_library()
+        categories = client.get_categories()
     except Exception as e:
         if str(e) == "Unauthorized":
             client.logout()
@@ -419,7 +438,7 @@ def edit(code):
 
     unit = client.credentials.get("unit", 0)
     custom_instruction = client.credentials.get("custom_instruction", "")
-    return render_template('create.html', library=library, existing_workout=workout, unit=unit, custom_instruction=custom_instruction)
+    return render_template('create.html', library=library, existing_workout=workout, unit=unit, custom_instruction=custom_instruction, categories=categories)
 
 
 @app.route('/create', methods=['GET', 'POST'])
@@ -445,19 +464,21 @@ def create():
 
     try:
         library = client.get_library()
+        categories = client.get_categories()
     except Exception as e:
         if str(e) == "Unauthorized":
             client.logout()
             flash("Session expired. Please login again.", "error")
             return redirect(url_for('settings'))
         library = []
+        categories = []
 
     unit = client.credentials.get("unit", 0)
     custom_instruction = client.credentials.get("custom_instruction", "")
     
     # HERE: We pass 'None' so the template knows: "No data to preload"
     # This has NO influence on the edit route, which sends its own data.
-    return render_template('create.html', library=library, existing_workout=None, unit=unit, custom_instruction=custom_instruction)
+    return render_template('create.html', library=library, existing_workout=None, unit=unit, custom_instruction=custom_instruction, categories=categories)
 
 @app.route('/delete/<int:id>')
 def delete(id):

@@ -10,7 +10,7 @@ class SpeedianceClient:
         self.region = self.credentials.get("region", "Global")
         self.base_url = "https://euapi.speediance.com" if self.region == "EU" else "https://api2.speediance.com"
         self.host = "euapi.speediance.com" if self.region == "EU" else "api2.speediance.com"
-        self.library_cache_file = "library_cache.json"
+        self.library_cache_file = "library_cache_v2.json"
         self.library_cache = self._load_library_cache()
         self.last_debug_info = {}
 
@@ -188,35 +188,73 @@ class SpeedianceClient:
             "User-Agent": "Dart/3.9 (dart:io)"
         }
 
+    def get_categories(self):
+        """Fetches the list of exercise categories (tabs)."""
+        url = f"{self.base_url}/api/app/actionLibraryTab/list?deviceType=1"
+        try:
+            resp = self._request('GET', url, headers=self._get_headers())
+            return resp.json().get('data', [])
+        except Exception as e:
+            print(f"Error fetching categories: {e}")
+            return []
+
     def get_library(self):
         if self.library_cache:
             return self.library_cache
             
-        url = f"{self.base_url}/api/app/actionLibraryGroup/trainingPartGroup?tabId=1&deviceTypeList=1"
         try:
-            resp = self._request('GET', url, headers=self._get_headers())
-            if resp.status_code == 401:
-                raise Exception("Unauthorized")
-            if resp.status_code == 200:
-                data = resp.json().get('data', [])
-                basic_list = []
-                for muscle_group in data:
-                    for action in muscle_group.get('actionLibraryGroupList', []):
-                        basic_list.append(action)
+            # 1. Fetch all categories
+            categories = self.get_categories()
+            all_basic_exercises = []
+            
+            # 2. Fetch exercises for each category
+            for category in categories:
+                tab_id = category['id']
+                # Skip "Customized" (id=8) as it's usually empty or user-specific in a way we might not want here?
+                # Actually, let's include everything.
                 
-                # Fetch details in batches to get full info (instructions, breathing, etc.)
-                all_ids = [ex['id'] for ex in basic_list]
-                detailed_library = []
-                chunk_size = 50
+                url = f"{self.base_url}/api/app/actionLibraryGroup/trainingPartGroup?tabId={tab_id}&deviceTypeList=1"
+                try:
+                    resp = self._request('GET', url, headers=self._get_headers())
+                    if resp.status_code == 200:
+                        data = resp.json().get('data', [])
+                        for muscle_group in data:
+                            for action in muscle_group.get('actionLibraryGroupList', []):
+                                # Tag with category info
+                                action['category_id'] = tab_id
+                                action['category_name'] = category['name']
+                                all_basic_exercises.append(action)
+                except Exception as e:
+                    print(f"Error fetching category {tab_id}: {e}")
+
+            # 3. Deduplicate by ID (keep first occurrence)
+            unique_exercises = {}
+            for ex in all_basic_exercises:
+                if ex['id'] not in unique_exercises:
+                    unique_exercises[ex['id']] = ex
+            
+            all_ids = list(unique_exercises.keys())
+            detailed_library = []
+            chunk_size = 50
+            
+            # 4. Fetch details in batches
+            for i in range(0, len(all_ids), chunk_size):
+                chunk_ids = all_ids[i:i + chunk_size]
+                details = self.get_batch_details(chunk_ids)
                 
-                for i in range(0, len(all_ids), chunk_size):
-                    chunk_ids = all_ids[i:i + chunk_size]
-                    details = self.get_batch_details(chunk_ids)
-                    detailed_library.extend(details)
+                # Re-attach category info
+                for d in details:
+                    if d['id'] in unique_exercises:
+                        original = unique_exercises[d['id']]
+                        d['category_id'] = original.get('category_id')
+                        d['category_name'] = original.get('category_name')
                 
-                self.library_cache = detailed_library
-                self._save_library_cache(detailed_library)
-                return detailed_library
+                detailed_library.extend(details)
+            
+            self.library_cache = detailed_library
+            self._save_library_cache(detailed_library)
+            return detailed_library
+
         except Exception as e:
             if str(e) == "Unauthorized": raise e
             print(f"Error fetching library: {e}")
