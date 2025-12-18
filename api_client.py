@@ -10,8 +10,27 @@ class SpeedianceClient:
         self.region = self.credentials.get("region", "Global")
         self.base_url = "https://euapi.speediance.com" if self.region == "EU" else "https://api2.speediance.com"
         self.host = "euapi.speediance.com" if self.region == "EU" else "api2.speediance.com"
-        self.library_cache = None 
+        self.library_cache_file = "library_cache.json"
+        self.library_cache = self._load_library_cache()
         self.last_debug_info = {}
+
+    def _load_library_cache(self):
+        """Loads library from disk if available."""
+        if os.path.exists(self.library_cache_file):
+            try:
+                with open(self.library_cache_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"Error loading library cache: {e}")
+        return None
+
+    def _save_library_cache(self, data):
+        """Saves library to disk."""
+        try:
+            with open(self.library_cache_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error saving library cache: {e}")
 
     def _request(self, method, url, **kwargs):
         """Wrapper for requests to capture debug info."""
@@ -196,6 +215,7 @@ class SpeedianceClient:
                     detailed_library.extend(details)
                 
                 self.library_cache = detailed_library
+                self._save_library_cache(detailed_library)
                 return detailed_library
         except Exception as e:
             if str(e) == "Unauthorized": raise e
