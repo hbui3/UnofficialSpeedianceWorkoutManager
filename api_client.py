@@ -11,15 +11,57 @@ class SpeedianceClient:
         self.base_url = "https://euapi.speediance.com" if self.region == "EU" else "https://api2.speediance.com"
         self.host = "euapi.speediance.com" if self.region == "EU" else "api2.speediance.com"
         self.library_cache = None 
+        self.last_debug_info = {}
+
+    def _request(self, method, url, **kwargs):
+        """Wrapper for requests to capture debug info."""
+        try:
+            resp = requests.request(method, url, **kwargs)
+            
+            # Capture debug info
+            try:
+                body_preview = resp.json()
+            except:
+                body_preview = resp.text[:500] + "..." if len(resp.text) > 500 else resp.text
+
+            self.last_debug_info = {
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "method": method,
+                "url": url,
+                "status": resp.status_code,
+                "request_headers": dict(resp.request.headers),
+                "request_body": kwargs.get('json') or kwargs.get('data'),
+                "response_body": body_preview
+            }
+            
+            # Check for application-level auth error (Code 91)
+            if isinstance(body_preview, dict) and body_preview.get('code') == 91:
+                raise Exception("Unauthorized")
+                
+            return resp
+        except Exception as e:
+            self.last_debug_info = {
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "method": method,
+                "url": url,
+                "error": str(e)
+            }
+            raise e
 
     def load_config(self):
         if os.path.exists(self.config_file):
             with open(self.config_file, 'r') as f:
                 return json.load(f)
-        return {"user_id": "", "token": "", "region": "Global", "unit": 0}
+        return {"user_id": "", "token": "", "region": "Global", "unit": 0, "custom_instruction": ""}
 
-    def save_config(self, user_id, token, region="Global", unit=0):
-        self.credentials = {"user_id": user_id, "token": token, "region": region, "unit": unit}
+    def save_config(self, user_id, token, region="Global", unit=0, custom_instruction=""):
+        self.credentials = {
+            "user_id": user_id, 
+            "token": token, 
+            "region": region, 
+            "unit": unit,
+            "custom_instruction": custom_instruction
+        }
         self.region = region
         self.host = "euapi.speediance.com" if self.region == "EU" else "api2.speediance.com"
         self.base_url = "https://" + self.host
@@ -31,14 +73,15 @@ class SpeedianceClient:
         url = f"{self.base_url}/api/app/userinfo"
         payload = {"unit": int(unit)}
         try:
-            resp = requests.put(url, headers=self._get_headers(), json=payload)
+            resp = self._request('PUT', url, headers=self._get_headers(), json=payload)
             if resp.status_code == 200:
                 # Update local config
                 self.save_config(
                     self.credentials.get("user_id"), 
                     self.credentials.get("token"), 
                     self.credentials.get("region"),
-                    unit
+                    unit,
+                    self.credentials.get("custom_instruction", "")
                 )
                 return True, "Unit updated successfully"
             else:
@@ -68,7 +111,7 @@ class SpeedianceClient:
         verify_payload = {"type": 2, "userIdentity": email}
         
         try:
-            resp = requests.post(verify_url, json=verify_payload, headers=headers)
+            resp = self._request('POST', verify_url, json=verify_payload, headers=headers)
             if resp.status_code != 200:
                 return False, "Verify failed", f"Status: {resp.status_code}\nResponse: {resp.text}"
             
@@ -83,14 +126,14 @@ class SpeedianceClient:
             bypass_url = f"{self.base_url}/api/app/v2/login/byPass"
             bypass_payload = {"userIdentity": email, "password": password, "type": 2}
             
-            resp = requests.post(bypass_url, json=bypass_payload, headers=headers)
+            resp = self._request('POST', bypass_url, json=bypass_payload, headers=headers)
             if resp.status_code == 200:
                 data = resp.json().get('data', {})
                 token = data.get('token')
                 user_id = data.get('appUserId')
                 
                 if token and user_id:
-                    self.save_config(str(user_id), token, self.region)
+                    self.save_config(str(user_id), token, self.region, self.credentials.get('unit', 0), self.credentials.get('custom_instruction', ''))
                     return True, "Login successful", None
                 return False, "Token or appUserId not found in response", f"Response: {resp.text}"
             else:
@@ -106,11 +149,12 @@ class SpeedianceClient:
         headers["User-Agent"] = "Dart/3.9 (dart:io)"
         
         try:
-            requests.post(url, headers=headers)
+            self._request('POST', url, headers=headers)
         except Exception as e:
             print(f"Logout error: {e}")
         
-        self.save_config("", "")
+        # Clear credentials but keep region/unit/instructions
+        self.save_config("", "", self.region, self.credentials.get('unit', 0), self.credentials.get('custom_instruction', ''))
         return True
 
     def _get_headers(self):
@@ -131,7 +175,9 @@ class SpeedianceClient:
             
         url = f"{self.base_url}/api/app/actionLibraryGroup/trainingPartGroup?tabId=1&deviceTypeList=1"
         try:
-            resp = requests.get(url, headers=self._get_headers())
+            resp = self._request('GET', url, headers=self._get_headers())
+            if resp.status_code == 401:
+                raise Exception("Unauthorized")
             if resp.status_code == 200:
                 data = resp.json().get('data', [])
                 basic_list = []
@@ -152,39 +198,46 @@ class SpeedianceClient:
                 self.library_cache = detailed_library
                 return detailed_library
         except Exception as e:
+            if str(e) == "Unauthorized": raise e
             print(f"Error fetching library: {e}")
         return []
     
     def get_accessories(self):
         url = f"{self.base_url}/api/app/accessories/list"
         try:
-            resp = requests.get(url, headers=self._get_headers())
+            resp = self._request('GET', url, headers=self._get_headers())
             return resp.json().get('data', [])
         except Exception as e:
+            if str(e) == "Unauthorized": raise e
             print(f"Error fetching accessories: {e}")
             return []
         
     def get_workout_detail(self, code):
         url = f"{self.base_url}/api/app/v3/customTrainingTemplate/detailByCode?code={code}"
         try:
-            resp = requests.get(url, headers=self._get_headers())
+            resp = self._request('GET', url, headers=self._get_headers())
+            if resp.status_code == 401:
+                raise Exception("Unauthorized")
             return resp.json().get('data', None)
         except Exception as e:
+            if str(e) == "Unauthorized": raise e
             print(f"Error fetching template detail: {e}")
             return None
 
     def get_user_workouts(self):
         url = f"{self.base_url}/api/app/v4/customTrainingTemplate/appPage?pageNo=1&pageSize=-1&deviceTypes=1"
-        resp = requests.get(url, headers=self._get_headers())
+        resp = self._request('GET', url, headers=self._get_headers())
+        if resp.status_code == 401:
+            raise Exception("Unauthorized")
         return resp.json().get('data', [])
 
     def delete_workout(self, template_id):
         url = f"{self.base_url}/api/app/customTrainingTemplate?ids={template_id}"
-        requests.delete(url, headers=self._get_headers())
+        self._request('DELETE', url, headers=self._get_headers())
 
     def get_exercise_detail(self, exercise_id):
         url = f"{self.base_url}/api/app/actionLibraryGroup/{exercise_id}?isDisplay=1"
-        resp = requests.get(url, headers=self._get_headers())
+        resp = self._request('GET', url, headers=self._get_headers())
         return resp.json().get('data', {})
 
     def is_exercise_unilateral(self, group_id):
@@ -199,9 +252,10 @@ class SpeedianceClient:
         url = f"{self.base_url}/api/app/actionLibraryGroup/list?{query_str}"
         
         try:
-            resp = requests.get(url, headers=self._get_headers())
+            resp = self._request('GET', url, headers=self._get_headers())
             return resp.json().get('data', [])
         except Exception as e:
+            if str(e) == "Unauthorized": raise e
             print(f"Error fetching batch details: {e}")
             return []
 
@@ -345,5 +399,7 @@ class SpeedianceClient:
             payload['id'] = int(template_id)
 
         url = f"{self.base_url}/api/app/v2/customTrainingTemplate"
-        resp = requests.post(url, headers=self._get_headers(), json=payload)
+        resp = self._request('POST', url, headers=self._get_headers(), json=payload)
+        if resp.status_code == 401:
+            raise Exception("Unauthorized")
         return resp.json()
