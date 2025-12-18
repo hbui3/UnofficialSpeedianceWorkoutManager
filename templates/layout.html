@@ -47,5 +47,51 @@
         {% endwith %}
         {% block content %}{% endblock %}
     </main>
+    <!-- Debug Button -->
+    <button onclick="showDebugInfo()" class="fixed bottom-4 right-4 bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full shadow-lg border border-gray-500 z-50" title="See Last API Response">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+        </svg>
+    </button>
+
+    <!-- Debug Modal -->
+    <div id="debugModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg shadow-xl w-3/4 h-3/4 flex flex-col border border-gray-600">
+            <div class="flex justify-between items-center p-4 border-b border-gray-700">
+                <h3 class="text-lg font-bold text-white">Last API Interaction</h3>
+                <button onclick="closeDebugModal()" class="text-gray-400 hover:text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4 flex-grow overflow-auto bg-gray-900 font-mono text-xs text-green-400">
+                <pre id="debugContent">Loading...</pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function showDebugInfo() {
+            const modal = document.getElementById('debugModal');
+            const content = document.getElementById('debugContent');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            try {
+                const response = await fetch('/debug/last_response');
+                const data = await response.json();
+                content.textContent = JSON.stringify(data, null, 2);
+            } catch (e) {
+                content.textContent = "Error fetching debug info: " + e;
+            }
+        }
+
+        function closeDebugModal() {
+            const modal = document.getElementById('debugModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+    </script>
 </body>
 </html>

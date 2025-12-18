@@ -121,7 +121,11 @@ def index():
     
     try:
         workouts = client.get_user_workouts()
-    except:
+    except Exception as e:
+        if str(e) == "Unauthorized":
+            client.logout()
+            flash("Session expired. Please login again.", "error")
+            return redirect(url_for('settings'))
         flash("Error loading workouts. Invalid token?", "error")
         workouts = []
     
@@ -136,7 +140,8 @@ def settings():
             request.form['user_id'], 
             request.form['token'], 
             request.form.get('region', 'Global'),
-            int(request.form.get('unit', 0))
+            int(request.form.get('unit', 0)),
+            request.form.get('custom_instruction', '')
         )
         flash("Settings saved!", "success")
         return redirect(url_for('index'))
@@ -305,8 +310,18 @@ def preload_assets():
 @app.route('/library')
 def library():
     if not client.credentials.get("token"): return redirect(url_for('settings'))
-    exercises = client.get_library()
-    accessories = client.get_accessories()
+    try:
+        exercises = client.get_library()
+        accessories = client.get_accessories()
+    except Exception as e:
+        if str(e) == "Unauthorized":
+            client.logout()
+            flash("Session expired. Please login again.", "error")
+            return redirect(url_for('settings'))
+        flash(f"Error loading library: {e}", "error")
+        exercises = []
+        accessories = []
+
     accessory_map = {str(acc['id']): acc['name'] for acc in accessories}
     
     # Enrich exercises with equipment names
@@ -353,24 +368,43 @@ def api_exercise_detail(ex_id):
     if not client.credentials.get("token"): 
         return jsonify({"error": "Unauthorized"}), 401
     
-    # Uses the existing cache/request
-    detail = client.get_exercise_detail(ex_id)
-    return jsonify(detail)
+    try:
+        # Uses the existing cache/request
+        detail = client.get_exercise_detail(ex_id)
+        return jsonify(detail)
+    except Exception as e:
+        if str(e) == "Unauthorized":
+            return jsonify({"error": "Unauthorized"}), 401
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/debug/last_response')
+def debug_last_response():
+    """Returns the last API request/response info for debugging."""
+    return jsonify(client.last_debug_info)
 
 @app.route('/edit/<string:code>')  # HERE: string instead of int
 def edit(code):
     if not client.credentials.get("token"): return redirect(url_for('settings'))
     
-    # Load workout details via code
-    workout = client.get_workout_detail(code)
+    try:
+        # Load workout details via code
+        workout = client.get_workout_detail(code)
+        library = client.get_library()
+    except Exception as e:
+        if str(e) == "Unauthorized":
+            client.logout()
+            flash("Session expired. Please login again.", "error")
+            return redirect(url_for('settings'))
+        flash(f"Error loading data: {e}", "error")
+        return redirect(url_for('index'))
     
     if not workout:
         flash("Could not load workout details.", "error")
         return redirect(url_for('index'))
 
-    library = client.get_library()
     unit = client.credentials.get("unit", 0)
-    return render_template('create.html', library=library, existing_workout=workout, unit=unit)
+    custom_instruction = client.credentials.get("custom_instruction", "")
+    return render_template('create.html', library=library, existing_workout=workout, unit=unit, custom_instruction=custom_instruction)
 
 
 @app.route('/create', methods=['GET', 'POST'])
@@ -383,19 +417,32 @@ def create():
         exercises = data.get('exercises')
         template_id = data.get('id') 
         
-        result = client.save_workout(name, exercises, template_id)
-        
-        if result.get('code') == 0:
-            return jsonify({"status": "success"})
-        else:
-            return jsonify({"status": "error", "message": result.get('message')})
+        try:
+            result = client.save_workout(name, exercises, template_id)
+            if result.get('code') == 0:
+                return jsonify({"status": "success"})
+            else:
+                return jsonify({"status": "error", "message": result.get('message')})
+        except Exception as e:
+            if str(e) == "Unauthorized":
+                return jsonify({"status": "error", "message": "Session expired. Please login again."}), 401
+            return jsonify({"status": "error", "message": str(e)})
 
-    library = client.get_library()
+    try:
+        library = client.get_library()
+    except Exception as e:
+        if str(e) == "Unauthorized":
+            client.logout()
+            flash("Session expired. Please login again.", "error")
+            return redirect(url_for('settings'))
+        library = []
+
     unit = client.credentials.get("unit", 0)
+    custom_instruction = client.credentials.get("custom_instruction", "")
     
     # HERE: We pass 'None' so the template knows: "No data to preload"
     # This has NO influence on the edit route, which sends its own data.
-    return render_template('create.html', library=library, existing_workout=None, unit=unit)
+    return render_template('create.html', library=library, existing_workout=None, unit=unit, custom_instruction=custom_instruction)
 
 @app.route('/delete/<int:id>')
 def delete(id):
