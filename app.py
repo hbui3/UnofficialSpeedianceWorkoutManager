@@ -332,6 +332,21 @@ def library():
         
     return render_template('library.html', exercises=exercises)
 
+@app.route('/library/refresh')
+def refresh_library():
+    if not client.credentials.get("token"): return redirect(url_for('settings'))
+    
+    # Clear memory and disk cache
+    client.library_cache = None
+    if os.path.exists(client.library_cache_file):
+        try:
+            os.remove(client.library_cache_file)
+        except Exception as e:
+            print(f"Error removing cache file: {e}")
+            
+    flash("Library cache cleared. Reloading from server...", "info")
+    return redirect(url_for('library'))
+
 @app.route('/exercise/<int:ex_id>')
 def exercise_detail(ex_id):
     if not client.credentials.get("token"): return redirect(url_for('settings'))
