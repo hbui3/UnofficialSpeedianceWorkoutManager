@@ -275,6 +275,11 @@
             name: ev.target.dataset.name
         }));
         ev.dataTransfer.effectAllowed = "copy";
+
+        // Auto-scroll to calendar so drop target is visible
+        setTimeout(() => {
+            document.getElementById('calendarGrid').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
     }
 
     function dragExisting(ev, date, code, name) {
