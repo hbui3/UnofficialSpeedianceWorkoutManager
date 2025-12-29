@@ -24,7 +24,7 @@
     <div class="flex flex-wrap gap-2 mb-4 justify-center md:justify-start">
         <button onclick="filterByCategory('all', this)" class="cat-btn active px-4 py-2 rounded-full text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition">All Categories</button>
         {% for cat in categories %}
-        <button onclick="filterByCategory('{{ cat.id }}', this)" class="cat-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">{{ cat.name }}</button>
+        <button onclick="filterByCategory('{{ cat.filter_ids | default(cat.id) }}', this)" class="cat-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">{{ cat.name }}</button>
         {% endfor %}
     </div>
 
@@ -36,6 +36,14 @@
         <button onclick="filterByMuscle('16', this)" class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">Arms</button>
         <button onclick="filterByMuscle('15', this)" class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">Legs</button>
         <button onclick="filterByMuscle('17', this)" class="filter-btn px-4 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">Core</button>
+
+        {% if device_type == 2 and allow_monster_moves %}
+        <div class="ml-2 pl-4 border-l border-gray-700 flex gap-2">
+            <button onclick="filterByDevice('all', this)" class="device-btn active px-3 py-2 rounded-full text-sm font-medium bg-yellow-600 text-white hover:bg-yellow-700 transition">All Devices</button>
+            <button onclick="filterByDevice('2', this)" class="device-btn px-3 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">Gym Pal</button>
+            <button onclick="filterByDevice('1', this)" class="device-btn px-3 py-2 rounded-full text-sm font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">Gym Monster</button>
+        </div>
+        {% endif %}
         
         <div class="ml-auto pl-4 border-l border-gray-700 flex gap-2">
             <a href="/library/refresh" class="px-3 py-2 rounded-full text-sm font-medium bg-gray-700 text-gray-300 hover:bg-gray-600 transition flex items-center justify-center" title="Refresh Library">
@@ -73,7 +81,7 @@
                 </thead>
                 <tbody class="bg-gray-800 divide-y divide-gray-700">
                     {% for ex in exercises %}
-                    <tr class="hover:bg-gray-700/50 exercise-row cursor-pointer" onclick="window.location.href='/exercise/{{ ex.id }}'" data-title="{{ ex.title | lower }}" data-muscle="{{ ex.trainingPartId2 }}" data-category="{{ ex.category_id }}">
+                    <tr class="hover:bg-gray-700/50 exercise-row cursor-pointer" onclick="window.location.href='/exercise/{{ ex.id }}'" data-title="{{ ex.title | lower }}" data-muscle="{{ ex.trainingPartId2 }}" data-category="{{ ex.category_id }}" data-device="{{ ex.device_type_tag | default(ex.device_type) }}">
                         <td class="px-4 py-2 font-mono text-xs text-gray-500 align-top">{{ ex.id }}</td>
                         <td class="px-4 py-2 font-bold text-white align-top">
                             {{ ex.title }}
@@ -116,7 +124,8 @@
            class="exercise-card group block bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-green-500 transition shadow-lg hover:shadow-green-500/10"
            data-title="{{ ex.title | lower }}"
            data-muscle="{{ ex.trainingPartId2 }}"
-           data-category="{{ ex.category_id }}">
+           data-category="{{ ex.category_id }}"
+           data-device="{{ ex.device_type_tag | default(ex.device_type) }}">
             
             <div class="aspect-square bg-gray-900 overflow-hidden relative">
                 <img src="{{ ex.img | local_cache }}" alt="{{ ex.title }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" loading="lazy">
@@ -163,10 +172,11 @@
     const noResults = document.getElementById('no-results');
     let currentFilter = 'all';
     let currentCategory = 'all';
+    let currentDevice = 'all';
 
     // 1. Search Logic
     searchInput.addEventListener('input', (e) => {
-        applyFilters(e.target.value.toLowerCase(), currentFilter, currentCategory);
+        applyFilters(e.target.value.toLowerCase(), currentFilter, currentCategory, currentDevice);
     });
 
     // 2. Muscle Filter Logic
@@ -182,7 +192,7 @@
         btnElement.classList.add('bg-green-600', 'text-white');
 
         // Apply
-        applyFilters(searchInput.value.toLowerCase(), currentFilter, currentCategory);
+        applyFilters(searchInput.value.toLowerCase(), currentFilter, currentCategory, currentDevice);
     }
 
     // 3. Category Filter Logic
@@ -198,11 +208,30 @@
         btnElement.classList.add('bg-blue-600', 'text-white');
 
         // Apply
-        applyFilters(searchInput.value.toLowerCase(), currentFilter, currentCategory);
+        applyFilters(searchInput.value.toLowerCase(), currentFilter, currentCategory, currentDevice);
+    }
+
+    function filterByDevice(deviceType, btnElement) {
+        currentDevice = deviceType;
+
+        document.querySelectorAll('.device-btn').forEach(btn => {
+            btn.classList.remove('bg-yellow-600', 'text-white');
+            btn.classList.add('bg-gray-800', 'text-gray-300', 'border-gray-700');
+        });
+        btnElement.classList.remove('bg-gray-800', 'text-gray-300', 'border-gray-700');
+        btnElement.classList.add('bg-yellow-600', 'text-white');
+
+        applyFilters(searchInput.value.toLowerCase(), currentFilter, currentCategory, currentDevice);
     }
 
     // Combined Filter Application
-    function applyFilters(searchTerm, muscleId, catId) {
+    function categoryMatch(itemCat, catId) {
+        if (catId === 'all') return true;
+        const ids = catId.split(',');
+        return ids.includes(itemCat);
+    }
+
+    function applyFilters(searchTerm, muscleId, catId, deviceType) {
         let visibleCount = 0;
 
         // Filter Cards
@@ -210,12 +239,14 @@
             const title = card.getAttribute('data-title');
             const cardMuscle = card.getAttribute('data-muscle');
             const cardCategory = card.getAttribute('data-category');
+            const cardDevice = (card.getAttribute('data-device') || '').split(',');
             
             const matchesSearch = title.includes(searchTerm);
             const matchesMuscle = (muscleId === 'all') || (cardMuscle === muscleId);
-            const matchesCategory = (catId === 'all') || (cardCategory === catId);
+            const matchesCategory = categoryMatch(cardCategory, catId);
+            const matchesDevice = (deviceType === 'all') || cardDevice.includes(deviceType);
 
-            if (matchesSearch && matchesMuscle && matchesCategory) {
+            if (matchesSearch && matchesMuscle && matchesCategory && matchesDevice) {
                 card.style.display = 'block';
                 visibleCount++;
             } else {
@@ -228,12 +259,14 @@
             const title = row.getAttribute('data-title');
             const rowMuscle = row.getAttribute('data-muscle');
             const rowCategory = row.getAttribute('data-category');
+            const rowDevice = (row.getAttribute('data-device') || '').split(',');
             
             const matchesSearch = title.includes(searchTerm);
             const matchesMuscle = (muscleId === 'all') || (rowMuscle === muscleId);
-            const matchesCategory = (catId === 'all') || (rowCategory === catId);
+            const matchesCategory = categoryMatch(rowCategory, catId);
+            const matchesDevice = (deviceType === 'all') || rowDevice.includes(deviceType);
 
-            if (matchesSearch && matchesMuscle && matchesCategory) {
+            if (matchesSearch && matchesMuscle && matchesCategory && matchesDevice) {
                 row.style.display = 'table-row';
             } else {
                 row.style.display = 'none';

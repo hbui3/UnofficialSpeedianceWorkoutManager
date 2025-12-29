@@ -8,11 +8,17 @@ class SpeedianceClient:
         self.config_file = "config.json"
         self.credentials = self.load_config()
         self.region = self.credentials.get("region", "Global")
+        self.device_type = int(self.credentials.get("device_type", 1))
+        self.allow_monster_moves = bool(self.credentials.get("allow_monster_moves", False))
         self.base_url = "https://euapi.speediance.com" if self.region == "EU" else "https://api2.speediance.com"
         self.host = "euapi.speediance.com" if self.region == "EU" else "api2.speediance.com"
-        self.library_cache_file = "library_cache_v2.json"
+        self.library_cache_file = self._get_library_cache_file()
         self.library_cache = self._load_library_cache()
         self.last_debug_info = {}
+
+    def _get_library_cache_file(self):
+        allow_flag = 1 if self.allow_monster_moves else 0
+        return f"library_cache_v2_device{self.device_type}_allow{allow_flag}.json"
 
     def _load_library_cache(self):
         """Loads library from disk if available."""
@@ -71,19 +77,33 @@ class SpeedianceClient:
         if os.path.exists(self.config_file):
             with open(self.config_file, 'r') as f:
                 return json.load(f)
-        return {"user_id": "", "token": "", "region": "Global", "unit": 0, "custom_instruction": ""}
+        return {
+            "user_id": "",
+            "token": "",
+            "region": "Global",
+            "unit": 0,
+            "custom_instruction": "",
+            "device_type": 1,
+            "allow_monster_moves": False,
+        }
 
-    def save_config(self, user_id, token, region="Global", unit=0, custom_instruction=""):
+    def save_config(self, user_id, token, region="Global", unit=0, custom_instruction="", device_type=1, allow_monster_moves=False):
         self.credentials = {
             "user_id": user_id, 
             "token": token, 
             "region": region, 
             "unit": unit,
-            "custom_instruction": custom_instruction
+            "custom_instruction": custom_instruction,
+            "device_type": int(device_type),
+            "allow_monster_moves": bool(allow_monster_moves),
         }
         self.region = region
+        self.device_type = int(device_type)
+        self.allow_monster_moves = bool(allow_monster_moves)
         self.host = "euapi.speediance.com" if self.region == "EU" else "api2.speediance.com"
         self.base_url = "https://" + self.host
+        self.library_cache_file = self._get_library_cache_file()
+        self.library_cache = self._load_library_cache()
         with open(self.config_file, 'w') as f:
             json.dump(self.credentials, f)
 
@@ -100,7 +120,9 @@ class SpeedianceClient:
                     self.credentials.get("token"), 
                     self.credentials.get("region"),
                     unit,
-                    self.credentials.get("custom_instruction", "")
+                    self.credentials.get("custom_instruction", ""),
+                    self.credentials.get("device_type", 1),
+                    self.credentials.get("allow_monster_moves", False),
                 )
                 return True, "Unit updated successfully"
             else:
@@ -152,7 +174,15 @@ class SpeedianceClient:
                 user_id = data.get('appUserId')
                 
                 if token and user_id:
-                    self.save_config(str(user_id), token, self.region, self.credentials.get('unit', 0), self.credentials.get('custom_instruction', ''))
+                    self.save_config(
+                        str(user_id),
+                        token,
+                        self.region,
+                        self.credentials.get('unit', 0),
+                        self.credentials.get('custom_instruction', ''),
+                        self.credentials.get('device_type', 1),
+                        self.credentials.get('allow_monster_moves', False),
+                    )
                     return True, "Login successful", None
                 return False, "Token or appUserId not found in response", f"Response: {resp.text}"
             else:
@@ -173,7 +203,15 @@ class SpeedianceClient:
             print(f"Logout error: {e}")
         
         # Clear credentials but keep region/unit/instructions
-        self.save_config("", "", self.region, self.credentials.get('unit', 0), self.credentials.get('custom_instruction', ''))
+        self.save_config(
+            "",
+            "",
+            self.region,
+            self.credentials.get('unit', 0),
+            self.credentials.get('custom_instruction', ''),
+            self.credentials.get('device_type', 1),
+            self.credentials.get('allow_monster_moves', False),
+        )
         return True
 
     def _get_headers(self):
@@ -190,10 +228,39 @@ class SpeedianceClient:
 
     def get_categories(self):
         """Fetches the list of exercise categories (tabs)."""
-        url = f"{self.base_url}/api/app/actionLibraryTab/list?deviceType=1"
-        try:
+        def fetch_categories(device_type):
+            url = f"{self.base_url}/api/app/actionLibraryTab/list?deviceType={device_type}"
             resp = self._request('GET', url, headers=self._get_headers())
             return resp.json().get('data', [])
+
+        try:
+            if self.device_type == 2 and self.allow_monster_moves:
+                cat_pal = fetch_categories(2)
+                cat_monster = fetch_categories(1)
+                merged = {}
+                for cat in cat_pal + cat_monster:
+                    name_key = (cat.get('name') or '').strip().lower()
+                    if not name_key:
+                        continue
+                    entry = merged.setdefault(name_key, {"name": cat.get("name"), "ids": []})
+                    entry["ids"].append(cat.get("id"))
+
+                merged_list = []
+                for entry in merged.values():
+                    ids = [cid for cid in entry["ids"] if cid is not None]
+                    if not ids:
+                        continue
+                    merged_list.append({
+                        "id": ids[0],
+                        "name": entry["name"],
+                        "filter_ids": ",".join(str(cid) for cid in ids),
+                    })
+                return merged_list
+
+            categories = fetch_categories(self.device_type)
+            for cat in categories:
+                cat["filter_ids"] = str(cat.get("id"))
+            return categories
         except Exception as e:
             print(f"Error fetching categories: {e}")
             return []
@@ -202,36 +269,53 @@ class SpeedianceClient:
         if self.library_cache:
             return self.library_cache
             
+        def fetch_categories(device_type):
+            url = f"{self.base_url}/api/app/actionLibraryTab/list?deviceType={device_type}"
+            resp = self._request('GET', url, headers=self._get_headers())
+            return resp.json().get('data', [])
+
         try:
             # 1. Fetch all categories
-            categories = self.get_categories()
+            if self.device_type == 2 and self.allow_monster_moves:
+                categories_by_device = {
+                    2: fetch_categories(2),
+                    1: fetch_categories(1),
+                }
+            else:
+                categories_by_device = {self.device_type: self.get_categories()}
+
             all_basic_exercises = []
-            
+
             # 2. Fetch exercises for each category
-            for category in categories:
-                tab_id = category['id']
-                # Skip "Customized" (id=8) as it's usually empty or user-specific in a way we might not want here?
-                # Actually, let's include everything.
-                
-                url = f"{self.base_url}/api/app/actionLibraryGroup/trainingPartGroup?tabId={tab_id}&deviceTypeList=1"
-                try:
-                    resp = self._request('GET', url, headers=self._get_headers())
-                    if resp.status_code == 200:
-                        data = resp.json().get('data', [])
-                        for muscle_group in data:
-                            for action in muscle_group.get('actionLibraryGroupList', []):
-                                # Tag with category info
-                                action['category_id'] = tab_id
-                                action['category_name'] = category['name']
-                                all_basic_exercises.append(action)
-                except Exception as e:
-                    print(f"Error fetching category {tab_id}: {e}")
+            for device_type, categories in categories_by_device.items():
+                for category in categories:
+                    tab_id = category['id']
+                    url = f"{self.base_url}/api/app/actionLibraryGroup/trainingPartGroup?tabId={tab_id}&deviceTypeList={device_type}"
+                    try:
+                        resp = self._request('GET', url, headers=self._get_headers())
+                        if resp.status_code == 200:
+                            data = resp.json().get('data', [])
+                            for muscle_group in data:
+                                for action in muscle_group.get('actionLibraryGroupList', []):
+                                    # Tag with category info and device source
+                                    action['category_id'] = tab_id
+                                    action['category_name'] = category['name']
+                                    action['device_type'] = device_type
+                                    all_basic_exercises.append(action)
+                    except Exception as e:
+                        print(f"Error fetching category {tab_id}: {e}")
 
             # 3. Deduplicate by ID (keep first occurrence)
             unique_exercises = {}
             for ex in all_basic_exercises:
                 if ex['id'] not in unique_exercises:
+                    ex['device_type_list'] = [ex.get('device_type')]
                     unique_exercises[ex['id']] = ex
+                else:
+                    existing = unique_exercises[ex['id']]
+                    current = set(existing.get('device_type_list', [existing.get('device_type')]))
+                    current.add(ex.get('device_type'))
+                    existing['device_type_list'] = sorted(t for t in current if t)
             
             all_ids = list(unique_exercises.keys())
             detailed_library = []
@@ -248,6 +332,9 @@ class SpeedianceClient:
                         original = unique_exercises[d['id']]
                         d['category_id'] = original.get('category_id')
                         d['category_name'] = original.get('category_name')
+                        device_types = original.get('device_type_list', [original.get('device_type')])
+                        d['device_type_list'] = device_types
+                        d['device_type_tag'] = ",".join(str(t) for t in device_types if t)
                 
                 detailed_library.extend(details)
             
@@ -283,7 +370,7 @@ class SpeedianceClient:
             return None
 
     def get_user_workouts(self):
-        url = f"{self.base_url}/api/app/v4/customTrainingTemplate/appPage?pageNo=1&pageSize=-1&deviceTypes=1"
+        url = f"{self.base_url}/api/app/v4/customTrainingTemplate/appPage?pageNo=1&pageSize=-1&deviceTypes={self.device_type}"
         resp = self._request('GET', url, headers=self._get_headers())
         if resp.status_code == 401:
             raise Exception("Unauthorized")
@@ -322,7 +409,7 @@ class SpeedianceClient:
         Fetches calendar data for a specific month.
         date_str: 'YYYY-MM'
         """
-        url = f"{self.base_url}/api/app/v5/trainingCalendar/monthNew?date={date_str}&selectedDeviceType=0"
+        url = f"{self.base_url}/api/app/v5/trainingCalendar/monthNew?date={date_str}&selectedDeviceType={self.device_type}"
         try:
             resp = self._request('GET', url, headers=self._get_headers())
             if resp.status_code == 401:
@@ -341,7 +428,7 @@ class SpeedianceClient:
         url = f"{self.base_url}/api/app/templateReservation"
         payload = {
             "status": status,
-            "deviceType": 1,
+            "deviceType": self.device_type,
             "thatDay": date_str,
             "templateCode": template_code
         }
@@ -487,7 +574,7 @@ class SpeedianceClient:
             "name": name,
             "actionLibraryList": action_library_list,
             "totalCapacity": total_capacity,
-            "deviceType": 1,
+            "deviceType": self.device_type,
             "bgColor": 0
         }
 

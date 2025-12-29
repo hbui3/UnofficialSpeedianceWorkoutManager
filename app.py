@@ -6,8 +6,12 @@ import sys
 import webbrowser
 from threading import Timer, Thread
 import requests
-import tkinter as tk
-from tkinter import scrolledtext
+try:
+    import tkinter as tk
+    from tkinter import scrolledtext
+except Exception:
+    tk = None
+    scrolledtext = None
 from urllib.parse import urlparse
 
 # Determine if running as a script or frozen exe (PyInstaller)
@@ -136,12 +140,16 @@ def index():
 def settings():
     if request.method == 'POST':
         # Manual config save
+        device_type = int(request.form.get('device_type', client.credentials.get('device_type', 1)))
+        allow_monster_moves = bool(request.form.get('allow_monster_moves'))
         client.save_config(
             request.form['user_id'], 
             request.form['token'], 
             request.form.get('region', 'Global'),
             int(request.form.get('unit', 0)),
-            request.form.get('custom_instruction', '')
+            request.form.get('custom_instruction', ''),
+            device_type,
+            allow_monster_moves,
         )
         flash("Settings saved!", "success")
         return redirect(url_for('index'))
@@ -161,7 +169,9 @@ def update_custom_instruction():
         creds.get('token'), 
         creds.get('region'),
         creds.get('unit', 0),
-        instruction
+        instruction,
+        creds.get('device_type', 1),
+        creds.get('allow_monster_moves', False),
     )
     return jsonify({"status": "success"})
 
@@ -173,6 +183,29 @@ def update_unit():
         flash("Unit preference updated!", "success")
     else:
         flash(f"Error updating unit: {msg}", "error")
+    return redirect(url_for('settings'))
+
+@app.route('/settings/device', methods=['POST'])
+def update_device():
+    device_type = int(request.form.get('device_type', client.credentials.get('device_type', 1)))
+    allow_monster_moves = bool(request.form.get('allow_monster_moves'))
+    creds = client.credentials
+    client.save_config(
+        creds.get('user_id'),
+        creds.get('token'),
+        creds.get('region'),
+        creds.get('unit', 0),
+        creds.get('custom_instruction', ''),
+        device_type,
+        allow_monster_moves,
+    )
+    client.library_cache = None
+    if os.path.exists(client.library_cache_file):
+        try:
+            os.remove(client.library_cache_file)
+        except Exception as e:
+            print(f"Error removing cache file: {e}")
+    flash("Device settings updated!", "success")
     return redirect(url_for('settings'))
 
 @app.route('/login', methods=['POST'])
@@ -348,7 +381,13 @@ def library():
         names = [accessory_map.get(aid, 'Standard') for aid in acc_ids if aid]
         ex['equipment_name'] = ', '.join(names) if names else 'Standard'
         
-    return render_template('library.html', exercises=exercises, categories=categories)
+    return render_template(
+        'library.html',
+        exercises=exercises,
+        categories=categories,
+        device_type=client.device_type,
+        allow_monster_moves=client.allow_monster_moves,
+    )
 
 @app.route('/library/refresh')
 def refresh_library():
@@ -478,7 +517,16 @@ def edit(code):
 
     unit = client.credentials.get("unit", 0)
     custom_instruction = client.credentials.get("custom_instruction", "")
-    return render_template('create.html', library=library, existing_workout=workout, unit=unit, custom_instruction=custom_instruction, categories=categories)
+    return render_template(
+        'create.html',
+        library=library,
+        existing_workout=workout,
+        unit=unit,
+        custom_instruction=custom_instruction,
+        categories=categories,
+        device_type=client.device_type,
+        allow_monster_moves=client.allow_monster_moves,
+    )
 
 
 @app.route('/create', methods=['GET', 'POST'])
@@ -518,7 +566,16 @@ def create():
     
     # HERE: We pass 'None' so the template knows: "No data to preload"
     # This has NO influence on the edit route, which sends its own data.
-    return render_template('create.html', library=library, existing_workout=None, unit=unit, custom_instruction=custom_instruction, categories=categories)
+    return render_template(
+        'create.html',
+        library=library,
+        existing_workout=None,
+        unit=unit,
+        custom_instruction=custom_instruction,
+        categories=categories,
+        device_type=client.device_type,
+        allow_monster_moves=client.allow_monster_moves,
+    )
 
 @app.route('/delete/<int:id>')
 def delete(id):
@@ -553,6 +610,10 @@ def run_flask_server():
         print(f"Error starting server: {e}")
 
 def start_gui():
+    if tk is None:
+        print("Tkinter is not available; starting Flask server without GUI.")
+        run_flask_server()
+        return
     root = tk.Tk()
     root.title("Unofficial Speediance Workout Manager Server")
     root.geometry("700x500")

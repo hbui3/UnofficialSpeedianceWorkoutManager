@@ -10,15 +10,24 @@
         <select id="category-filter" class="w-full bg-gray-900 border border-gray-600 p-2 rounded mb-4 text-white focus:border-green-500 outline-none text-sm">
             <option value="all">All Categories</option>
             {% for cat in categories %}
-            <option value="{{ cat.id }}">{{ cat.name }}</option>
+            <option value="{{ cat.filter_ids | default(cat.id) }}">{{ cat.name }}</option>
             {% endfor %}
         </select>
+
+        {% if device_type == 2 and allow_monster_moves %}
+        <div class="flex gap-2 mb-3 text-xs">
+            <button type="button" onclick="filterByDevice('all', this)" class="device-btn active px-2 py-1 rounded-full font-medium bg-yellow-600 text-white hover:bg-yellow-700 transition">All Devices</button>
+            <button type="button" onclick="filterByDevice('2', this)" class="device-btn px-2 py-1 rounded-full font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">Gym Pal</button>
+            <button type="button" onclick="filterByDevice('1', this)" class="device-btn px-2 py-1 rounded-full font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700 transition">Gym Monster</button>
+        </div>
+        {% endif %}
         
         <div class="overflow-y-auto flex-grow space-y-2 pr-2" id="library-list">
             {% for ex in library %}
             <div class="bg-gray-700/50 p-3 rounded cursor-pointer hover:bg-gray-700 hover:border-l-4 hover:border-green-500 flex items-center gap-3 exercise-item transition-all" 
                  onclick="addExerciseToPlan('{{ ex.id }}', '{{ ex.title|escape }}', '{{ ex.img | local_cache }}')"
-                 data-category="{{ ex.category_id }}">
+                 data-category="{{ ex.category_id }}"
+                 data-device="{{ ex.device_type_tag | default(ex.device_type) }}">
                 <img src="{{ ex.img | local_cache }}" class="w-12 h-12 object-cover rounded bg-black">
                 <div>
                     <div class="font-bold text-sm text-gray-200" data-title="{{ ex.title|lower }}">{{ ex.title }}</div>
@@ -139,7 +148,7 @@
                 <div class="flex flex-wrap gap-3 bg-gray-900 p-3 rounded border border-gray-600 max-h-32 overflow-y-auto">
                     {% for cat in categories %}
                     <label class="inline-flex items-center cursor-pointer select-none">
-                        <input type="checkbox" class="form-checkbox h-4 w-4 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500 prompt-cat-filter" value="{{ cat.id }}" {% if cat.name == 'Training' %}checked{% endif %}>
+                        <input type="checkbox" class="form-checkbox h-4 w-4 text-purple-600 bg-gray-700 border-gray-600 rounded focus:ring-purple-500 prompt-cat-filter" value="{{ cat.id }}" data-filter-ids="{{ cat.filter_ids | default(cat.id) }}" {% if cat.name == 'Training' %}checked{% endif %}>
                         <span class="ml-2 text-gray-300 text-sm">{{ cat.name }}</span>
                     </label>
                     {% endfor %}
@@ -216,6 +225,13 @@
         const categoryFilter = document.getElementById('category-filter');
         const libraryList = document.getElementById('library-list');
         const items = libraryList.querySelectorAll('.exercise-item');
+        let currentDevice = 'all';
+
+        function matchCategoryFilter(itemCat, catId) {
+            if (catId === 'all') return true;
+            const ids = catId.split(',');
+            return ids.includes(itemCat);
+        }
 
         function filterLibrary() {
             const term = searchInput.value.toLowerCase();
@@ -224,11 +240,13 @@
             items.forEach(item => {
                 const title = item.querySelector('[data-title]').getAttribute('data-title');
                 const itemCat = item.getAttribute('data-category');
+                const itemDevices = (item.getAttribute('data-device') || '').split(',');
                 
                 const matchesSearch = title.includes(term);
-                const matchesCat = (catId === 'all') || (itemCat === catId);
+                const matchesCat = matchCategoryFilter(itemCat, catId);
+                const matchesDevice = (currentDevice === 'all') || itemDevices.includes(currentDevice);
 
-                if (matchesSearch && matchesCat) {
+                if (matchesSearch && matchesCat && matchesDevice) {
                     item.classList.remove('hidden');
                     item.classList.add('flex');
                 } else {
@@ -237,6 +255,17 @@
                 }
             });
         }
+
+        window.filterByDevice = (deviceType, btnElement) => {
+            currentDevice = deviceType;
+            document.querySelectorAll('.device-btn').forEach(btn => {
+                btn.classList.remove('bg-yellow-600', 'text-white');
+                btn.classList.add('bg-gray-800', 'text-gray-300', 'border-gray-700');
+            });
+            btnElement.classList.remove('bg-gray-800', 'text-gray-300', 'border-gray-700');
+            btnElement.classList.add('bg-yellow-600', 'text-white');
+            filterLibrary();
+        };
 
         searchInput.addEventListener('input', filterLibrary);
         categoryFilter.addEventListener('change', filterLibrary);
@@ -633,7 +662,16 @@
         }
 
         // Get selected categories
-        const selectedCats = Array.from(document.querySelectorAll('.prompt-cat-filter:checked')).map(cb => parseInt(cb.value));
+        const selectedCats = new Set();
+        document.querySelectorAll('.prompt-cat-filter:checked').forEach(cb => {
+            const ids = (cb.dataset.filterIds || cb.value || '').split(',');
+            ids.forEach(id => {
+                const parsed = parseInt(id, 10);
+                if (!Number.isNaN(parsed)) {
+                    selectedCats.add(parsed);
+                }
+            });
+        });
 
         const muscleMap = {
             11: 'Chest',
@@ -667,7 +705,7 @@ Use these modes appropriately based on the goal (e.g., Eccentric for hypertrophy
         let addedCount = 0;
         fullLibrary.forEach(ex => {
             // Filter by category
-            if (!selectedCats.includes(ex.category_id)) return;
+            if (!selectedCats.has(ex.category_id)) return;
 
             const focus = muscleMap[ex.trainingPartId2] || 'General';
             let target = ex.mainMuscleGroupName || '';

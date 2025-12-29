@@ -1,4 +1,9 @@
 {
     "user_id": "",
-    "token": ""
+    "token": "",
+    "region": "Global",
+    "unit": 0,
+    "custom_instruction": "",
+    "device_type": 1,
+    "allow_monster_moves": false
 }

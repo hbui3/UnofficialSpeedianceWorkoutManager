@@ -42,10 +42,26 @@
         </form>
     {% endif %}
 
+    <form action="/settings/device" method="POST" class="mb-8 pb-8 border-b border-gray-700">
+        <label class="block text-sm font-bold mb-2 text-gray-300">Device Type</label>
+        <div class="flex gap-2 mb-3">
+            <select id="device_type" name="device_type" class="flex-grow p-2 bg-gray-700 rounded text-white border border-gray-600">
+                <option value="1" {% if creds.device_type == 1 %}selected{% endif %}>Gym Monster</option>
+                <option value="2" {% if creds.device_type == 2 %}selected{% endif %}>Gym Pal</option>
+            </select>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Save</button>
+        </div>
+        <div id="allow_monster_moves_wrap" class="flex items-center gap-2 text-sm text-gray-300">
+            <input type="checkbox" id="allow_monster_moves" name="allow_monster_moves" class="h-4 w-4" {% if creds.allow_monster_moves %}checked{% endif %}>
+            <label for="allow_monster_moves">Allow Gym Monster movements in Gym Pal workouts</label>
+        </div>
+        <p class="text-xs text-gray-500 mt-2">This only changes which exercises and workouts are fetched; it does not change your account login.</p>
+    </form>
+
     <details class="mb-8 group">
         <summary class="text-xl font-bold text-white mb-4 cursor-pointer flex items-center select-none">
             <svg class="w-4 h-4 mr-2 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-            Advanced: Manual Configuration
+            Manual Config (Token/Region)
         </summary>
         <div class="pl-6 border-l-2 border-gray-700">
             <p class="text-sm text-gray-400 mb-4">
@@ -71,6 +87,14 @@
                 <div class="mb-6">
                     <label class="block text-sm font-bold mb-2 text-gray-300">Unit (0=Metric, 1=Imperial)</label>
                     <input type="number" name="unit" value="{{ creds.unit }}" class="w-full p-2 bg-gray-700 rounded text-white border border-gray-600 font-mono text-sm">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-bold mb-2 text-gray-300">Device Type (1=Gym Monster, 2=Gym Pal)</label>
+                    <input type="number" name="device_type" value="{{ creds.device_type }}" class="w-full p-2 bg-gray-700 rounded text-white border border-gray-600 font-mono text-sm">
+                </div>
+                <div class="mb-6 flex items-center gap-2 text-sm text-gray-300">
+                    <input type="checkbox" id="allow_monster_moves_manual" name="allow_monster_moves" class="h-4 w-4" {% if creds.allow_monster_moves %}checked{% endif %}>
+                    <label for="allow_monster_moves_manual">Allow Gym Monster movements in Gym Pal workouts</label>
                 </div>
                 <!-- Custom Instruction moved to Create Page Modal -->
                 <input type="hidden" name="custom_instruction" value="{{ creds.custom_instruction }}">
@@ -118,4 +142,15 @@
         </p>
     </div>
 </div>
+<script>
+    const deviceSelect = document.getElementById('device_type');
+    const allowWrap = document.getElementById('allow_monster_moves_wrap');
+    if (deviceSelect && allowWrap) {
+        const toggleAllow = () => {
+            allowWrap.style.display = deviceSelect.value === '2' ? 'flex' : 'none';
+        };
+        deviceSelect.addEventListener('change', toggleAllow);
+        toggleAllow();
+    }
+</script>
 {% endblock %}
