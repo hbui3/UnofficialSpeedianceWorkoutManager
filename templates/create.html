@@ -589,6 +589,7 @@
             exercises: workoutData.map(ex => ({
                 id: ex.groupId,
                 title: ex.title,
+                presetId: ex.selectedPresetId,  
                 sets: ex.sets.map(s => ({
                     reps: s.reps,
                     weight: s.weight,
@@ -658,6 +659,21 @@ MODES:
 - 3: Eccentric (Resistance increases during the lowering phase)
 Use these modes appropriately based on the goal (e.g., Eccentric for hypertrophy/control).
 
+PRESET IDS:
+- -1: Custom (KG)
+- 1: Gain Muscle (RM)
+- 3: Stamina (RM)
+- 5: Strength (RM)
+Depending on the preset, the training weight can be prescribed either as an absolute weight (kg) or as a relative RM value based on the users maximum strength for a specific number of repetitions.
+When providing a RM value try to keep one repetition in reserve to avoid overtraining.
+Use the preset ID appropriately based on the goal (e.g., Gain Muscle for hypertrophy, Stamina for endurance, Strength for strength/explosiveness).
+For custom workouts, use the -1 preset.
+
+Set the weight and repetitions appropriately for the goal considering the limits of the presets:
+- Gain Muscle: 8-12 repetitions, 9-13 RM
+- Stamina: 13-20 repetitions, 15-20 RM
+- Strength: 4-9 repetitions, 4-9 RMS
+
 `;
 
         if (currentCustomInstruction && currentCustomInstruction.trim()) {
@@ -692,6 +708,7 @@ You must output a JSON object with the following structure:
   "exercises": [
     {
       "id": "Exercise ID",
+      "presetId": "Preset ID",
       "sets": [
         { "reps": 10, "weight": 10, "mode": 1, "rest": 60 }
       ]
@@ -791,7 +808,7 @@ You must output a JSON object with the following structure:
                         variants: meta.variants,
                         presets: meta.presets,
                         selectedVariantId: meta.variants?.[0]?.id || groupId, // Default to first variant
-                        selectedPresetId: -1, // Default to Custom
+                        selectedPresetId: parseInt(ex.presetId),
                         sets: finalSets
                     });
                 }
