@@ -1,0 +1,465 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="mb-6">
+    <div class="flex justify-between items-center mb-4">
+        <h1 class="text-3xl font-bold text-white">Workout History</h1>
+        <div class="flex gap-2 items-center">
+            <input type="date" id="startDate" class="bg-gray-800 border border-gray-600 text-white p-2 rounded text-sm">
+            <span class="text-gray-400">to</span>
+            <input type="date" id="endDate" class="bg-gray-800 border border-gray-600 text-white p-2 rounded text-sm">
+            <button onclick="fetchHistory()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition text-sm">Load</button>
+            <button onclick="exportHistory()" id="exportBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition text-sm hidden">Export JSON</button>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div id="statsCards" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 hidden">
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <p class="text-xs text-gray-400 uppercase tracking-wider">Workouts</p>
+            <p id="statWorkouts" class="text-2xl font-bold text-white mt-1">-</p>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <p class="text-xs text-gray-400 uppercase tracking-wider">Total Time</p>
+            <p id="statTime" class="text-2xl font-bold text-blue-400 mt-1">-</p>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <p class="text-xs text-gray-400 uppercase tracking-wider">Calories</p>
+            <p id="statCalories" class="text-2xl font-bold text-orange-400 mt-1">-</p>
+        </div>
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+            <p class="text-xs text-gray-400 uppercase tracking-wider">Volume</p>
+            <p id="statVolume" class="text-2xl font-bold text-green-400 mt-1">-</p>
+        </div>
+    </div>
+
+    <!-- Loading / Empty state -->
+    <div id="loadingState" class="text-center text-gray-500 py-10 hidden">Loading...</div>
+    <div id="emptyState" class="text-center text-gray-500 py-10">Select a date range and click Load to view your workout history.</div>
+
+    <!-- Records Table -->
+    <div id="recordsTable" class="hidden">
+        <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-900 text-gray-400 uppercase text-xs tracking-wider">
+                        <th class="p-3 text-left">Date</th>
+                        <th class="p-3 text-left">Workout</th>
+                        <th class="p-3 text-center">Type</th>
+                        <th class="p-3 text-right">Duration</th>
+                        <th class="p-3 text-right">Calories</th>
+                        <th class="p-3 text-right">Volume</th>
+                    </tr>
+                </thead>
+                <tbody id="recordsBody" class="divide-y divide-gray-700">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div id="detailModal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-50">
+    <div class="bg-gray-800 p-6 rounded-lg w-full max-w-3xl border border-gray-700 shadow-2xl flex flex-col max-h-[85vh]">
+        <div class="flex justify-between items-center mb-4 border-b border-gray-700 pb-3">
+            <div>
+                <h3 class="text-xl font-bold text-white" id="detailTitle">Workout Detail</h3>
+                <p class="text-sm text-gray-400" id="detailSubtitle"></p>
+            </div>
+            <button onclick="closeDetailModal()" class="text-gray-400 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <!-- Session Summary -->
+        <div id="detailStats" class="grid grid-cols-3 gap-3 mb-4 hidden">
+            <div class="bg-gray-900 rounded p-3 text-center">
+                <p class="text-xs text-gray-400">Duration</p>
+                <p id="detailDuration" class="text-lg font-bold text-blue-400">-</p>
+            </div>
+            <div class="bg-gray-900 rounded p-3 text-center">
+                <p class="text-xs text-gray-400">Calories</p>
+                <p id="detailCalories" class="text-lg font-bold text-orange-400">-</p>
+            </div>
+            <div class="bg-gray-900 rounded p-3 text-center">
+                <p class="text-xs text-gray-400">Volume</p>
+                <p id="detailVolume" class="text-lg font-bold text-green-400">-</p>
+            </div>
+        </div>
+
+        <!-- Exercise List -->
+        <div class="overflow-y-auto flex-grow" id="detailContent">
+            <div id="detailLoading" class="text-center py-8 text-gray-500">Loading details...</div>
+            <div id="detailExercises" class="space-y-3"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const unit = {{ unit }};
+    const unitLabel = unit === 1 ? 'lbs' : 'kg';
+    let historyData = null;
+
+    // Type labels and detail endpoint mapping
+    const TYPE_MAP = {
+        1: { label: 'Free Lift', color: 'text-gray-400', detailType: null },
+        2: { label: 'Program', color: 'text-blue-400', detailType: 'course' },
+        5: { label: 'Custom', color: 'text-green-400', detailType: 'custom' },
+        7: { label: 'Quick', color: 'text-yellow-400', detailType: null }
+    };
+
+    // Default: last 30 days
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    document.getElementById('endDate').value = fmtDate(today);
+    document.getElementById('startDate').value = fmtDate(thirtyDaysAgo);
+
+    function fmtDate(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    function fmtSeconds(sec) {
+        if (!sec && sec !== 0) return '-';
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        const s = sec % 60;
+        if (h > 0) return `${h}h ${m}m`;
+        if (m > 0) return `${m}m ${s}s`;
+        return `${s}s`;
+    }
+
+    function fmtDateTime(str) {
+        // "2026-02-27 19:12:47" → "Feb 27, 19:12"
+        if (!str) return '-';
+        try {
+            const d = new Date(str.replace(' ', 'T'));
+            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            return `${months[d.getMonth()]} ${d.getDate()}, ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        } catch { return str; }
+    }
+
+    function fmtWeight(val) {
+        if (!val || val === 0) return '-';
+        // Round nicely
+        return Number.isInteger(val) ? val : val.toFixed(1);
+    }
+
+    async function fetchHistory() {
+        const start = document.getElementById('startDate').value;
+        const end = document.getElementById('endDate').value;
+        if (!start || !end) return alert('Please select a date range.');
+
+        document.getElementById('emptyState').classList.add('hidden');
+        document.getElementById('recordsTable').classList.add('hidden');
+        document.getElementById('statsCards').classList.add('hidden');
+        document.getElementById('loadingState').classList.remove('hidden');
+
+        try {
+            const resp = await fetch(`/api/history?start=${start}&end=${end}`);
+            if (resp.status === 401) { window.location.href = '/login'; return; }
+            const data = await resp.json();
+            historyData = data;
+            renderHistory(data);
+        } catch (err) {
+            console.error('Error fetching history:', err);
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('emptyState').classList.remove('hidden');
+            document.getElementById('emptyState').textContent = 'Error loading history: ' + err.message;
+        }
+    }
+
+    function renderHistory(data) {
+        document.getElementById('loadingState').classList.add('hidden');
+
+        const records = data.records || [];
+        const stats = data.stats || {};
+
+        // Stats cards
+        if (stats && Object.keys(stats).length > 0) {
+            document.getElementById('statsCards').classList.remove('hidden');
+            document.getElementById('statWorkouts').textContent = records.length;
+            document.getElementById('statTime').textContent = fmtSeconds(stats.trainingTime);
+            document.getElementById('statCalories').textContent = stats.calorie ? `${Math.round(stats.calorie)} kcal` : '-';
+            document.getElementById('statVolume').textContent = stats.totalCapacity
+                ? `${Math.round(stats.totalCapacity).toLocaleString()} ${unitLabel}`
+                : '-';
+        }
+
+        const tbody = document.getElementById('recordsBody');
+        tbody.innerHTML = '';
+
+        if (records.length === 0) {
+            document.getElementById('emptyState').textContent = 'No workouts found in this date range.';
+            document.getElementById('emptyState').classList.remove('hidden');
+            document.getElementById('exportBtn').classList.add('hidden');
+            return;
+        }
+
+        document.getElementById('recordsTable').classList.remove('hidden');
+        document.getElementById('exportBtn').classList.remove('hidden');
+
+        // Sort by startTime descending
+        records.sort((a, b) => (b.startTime || b.createTime || '').localeCompare(a.startTime || a.createTime || ''));
+
+        records.forEach(rec => {
+            const tr = document.createElement('tr');
+            const typeInfo = TYPE_MAP[rec.type] || { label: `Type ${rec.type}`, color: 'text-gray-400', detailType: null };
+            const hasDetail = typeInfo.detailType !== null;
+
+            tr.className = hasDetail
+                ? 'hover:bg-gray-700/50 transition cursor-pointer'
+                : 'hover:bg-gray-700/30 transition';
+
+            if (hasDetail) {
+                tr.onclick = () => openDetail(rec);
+            }
+
+            const date = fmtDateTime(rec.startTime || rec.createTime);
+            const name = rec.title || 'Workout';
+            const duration = fmtSeconds(rec.trainingTime);
+            const calories = rec.calorie ? `${Math.round(rec.calorie)} kcal` : '-';
+            const volume = rec.totalCapacity ? `${Math.round(rec.totalCapacity).toLocaleString()} ${unitLabel}` : '-';
+
+            tr.innerHTML = `
+                <td class="p-3 text-gray-300 whitespace-nowrap">${date}</td>
+                <td class="p-3">
+                    <div class="flex items-center gap-3">
+                        ${rec.courseImg ? `<img src="${rec.courseImg}" class="w-8 h-8 rounded object-cover bg-black flex-shrink-0">` : ''}
+                        <span class="text-white font-medium">${name}</span>
+                    </div>
+                </td>
+                <td class="p-3 text-center"><span class="${typeInfo.color} text-xs font-medium">${typeInfo.label}</span></td>
+                <td class="p-3 text-right text-blue-300">${duration}</td>
+                <td class="p-3 text-right text-orange-300">${calories}</td>
+                <td class="p-3 text-right text-green-300">${volume}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function openDetail(rec) {
+        const modal = document.getElementById('detailModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
+        document.getElementById('detailTitle').textContent = rec.title || 'Workout Detail';
+        document.getElementById('detailSubtitle').textContent = fmtDateTime(rec.startTime || rec.createTime);
+        document.getElementById('detailLoading').classList.remove('hidden');
+        document.getElementById('detailExercises').innerHTML = '';
+        document.getElementById('detailStats').classList.add('hidden');
+
+        const typeInfo = TYPE_MAP[rec.type] || {};
+        const apiType = typeInfo.detailType || 'custom';
+
+        try {
+            const resp = await fetch(`/api/history/detail/${rec.trainingId}?type=${apiType}`);
+            const data = await resp.json();
+            document.getElementById('detailLoading').classList.add('hidden');
+            renderDetail(data, rec);
+        } catch (err) {
+            console.error('Error fetching detail:', err);
+            document.getElementById('detailLoading').textContent = 'Error loading details: ' + err.message;
+        }
+    }
+
+    function renderDetail(data, rec) {
+        const session = data.session || {};
+        const exercises = Array.isArray(data.detail) ? data.detail : [];
+
+        // Session stats
+        const statsEl = document.getElementById('detailStats');
+        statsEl.classList.remove('hidden');
+        document.getElementById('detailDuration').textContent = fmtSeconds(session.trainingTime || rec.trainingTime);
+        document.getElementById('detailCalories').textContent = (session.calorie || rec.calorie)
+            ? `${Math.round(session.calorie || rec.calorie)} kcal` : '-';
+        document.getElementById('detailVolume').textContent = (session.totalCapacity || rec.totalCapacity)
+            ? `${Math.round(session.totalCapacity || rec.totalCapacity).toLocaleString()} ${unitLabel}` : '-';
+
+        const container = document.getElementById('detailExercises');
+
+        if (exercises.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-6 text-gray-500">
+                    <p>No exercise breakdown available for this session type.</p>
+                    <p class="text-xs mt-1">Detailed data is available for Program and Custom workouts.</p>
+                </div>`;
+            return;
+        }
+
+        exercises.forEach(ex => {
+            const card = document.createElement('div');
+            card.className = 'bg-gray-900 rounded-lg border border-gray-700 overflow-hidden';
+
+            const name = ex.actionLibraryName || 'Exercise';
+            const sets = ex.finishedReps || [];
+            const totalCap = ex.totalCapacity || 0;
+            const rating = ex.actionRating;
+            const isUnilateral = ex.isLeftRight === 1;
+            const isTimer = ex.completionMethod === 0;
+
+            // Score stars
+            let ratingHtml = '';
+            if (rating != null && rating > 0) {
+                ratingHtml = `<span class="text-yellow-400 text-xs ml-2">${'★'.repeat(Math.min(rating, 5))}${'☆'.repeat(Math.max(0, 5 - rating))}</span>`;
+            }
+
+            // Sets table
+            let setsHtml = '';
+            if (sets.length > 0) {
+                if (isTimer) {
+                    // Timer exercise: show duration per set
+                    setsHtml = `<div class="px-3 pb-3">
+                        <div class="grid grid-cols-12 gap-1 text-[10px] uppercase text-gray-500 font-bold mb-1 px-1">
+                            <div class="col-span-1 text-center">#</div>
+                            <div class="col-span-11">Duration</div>
+                        </div>`;
+                    sets.forEach((s, i) => {
+                        const dur = s.targetCount || s.time || 0;
+                        setsHtml += `
+                            <div class="grid grid-cols-12 gap-1 items-center bg-gray-800/50 rounded px-1 py-0.5 text-xs">
+                                <div class="col-span-1 text-center text-gray-500 font-mono">${i + 1}</div>
+                                <div class="col-span-11 text-blue-300 font-medium">${fmtSeconds(dur)}</div>
+                            </div>`;
+                    });
+                    setsHtml += '</div>';
+                } else {
+                    // Rep-based exercise
+                    setsHtml = `<div class="px-3 pb-3">
+                        <div class="grid grid-cols-12 gap-1 text-[10px] uppercase text-gray-500 font-bold mb-1 px-1">
+                            <div class="col-span-1 text-center">#</div>
+                            <div class="col-span-3">Reps</div>
+                            <div class="col-span-3">Weight</div>
+                            <div class="col-span-3">Volume</div>
+                            <div class="col-span-2"></div>
+                        </div>`;
+
+                    sets.forEach((s, i) => {
+                        const reps = s.finishedCount || 0;
+                        const target = s.targetCount || 0;
+                        const cap = s.capacity || 0;
+                        const detail = s.trainingInfoDetail || {};
+
+                        // Use actual weight from trainingInfoDetail (per-rep array)
+                        let weightDisplay = '-';
+                        let weightNote = '';
+                        let wArr = null;
+                        if (isUnilateral && s.leftRight === 1 && detail.leftWeights && detail.leftWeights.length > 0) {
+                            wArr = detail.leftWeights;
+                        } else if (isUnilateral && s.leftRight === 2 && detail.rightWeights && detail.rightWeights.length > 0) {
+                            wArr = detail.rightWeights;
+                        } else if (detail.weights && detail.weights.length > 0) {
+                            wArr = detail.weights;
+                        }
+
+                        if (wArr) {
+                            const unique = [...new Set(wArr)];
+                            if (unique.length === 1) {
+                                weightDisplay = `${fmtWeight(unique[0])} ${unitLabel}`;
+                            } else {
+                                // Weight changed mid-set: group consecutive reps by weight
+                                const segments = [];
+                                let curW = wArr[0], curCount = 1;
+                                for (let j = 1; j < wArr.length; j++) {
+                                    if (wArr[j] === curW) { curCount++; }
+                                    else { segments.push({ w: curW, n: curCount }); curW = wArr[j]; curCount = 1; }
+                                }
+                                segments.push({ w: curW, n: curCount });
+
+                                const first = segments[0].w;
+                                const last = segments[segments.length - 1].w;
+                                weightDisplay = `${fmtWeight(first)}→${fmtWeight(last)} ${unitLabel}`;
+
+                                // Build descriptive note: "8×43, 4×30"
+                                const desc = segments.map(seg => `${seg.n}×${fmtWeight(seg.w)}`).join(', ');
+                                const color = last < first ? 'text-red-400' : 'text-green-400';
+                                weightNote = `<span class="${color}">${desc}</span>`;
+                            }
+                        } else if (reps > 0 && cap > 0) {
+                            // Fallback: calculate from capacity
+                            weightDisplay = `${fmtWeight(cap / reps)} ${unitLabel}`;
+                        }
+
+                        // Completion indicator
+                        const completed = reps >= target;
+                        const repsColor = completed ? 'text-green-400' : 'text-red-400';
+
+                        // Side label for unilateral
+                        let sideLabel = '';
+                        if (isUnilateral) {
+                            if (s.leftRight === 1) sideLabel = '<span class="text-green-400 font-bold mr-1">L</span>';
+                            else if (s.leftRight === 2) sideLabel = '<span class="text-blue-400 font-bold mr-1">R</span>';
+                        }
+
+                        setsHtml += `
+                            <div class="grid grid-cols-12 gap-1 items-center bg-gray-800/50 rounded px-1 py-0.5 text-xs">
+                                <div class="col-span-1 text-center text-gray-500 font-mono">${sideLabel}${i + 1}</div>
+                                <div class="col-span-3 ${repsColor} font-medium">${reps}${target ? ` / ${target}` : ''}</div>
+                                <div class="col-span-3 text-white">${weightDisplay}</div>
+                                <div class="col-span-3 text-gray-400">${cap > 0 ? `${Math.round(cap)} ${unitLabel}` : '-'}</div>
+                                <div class="col-span-2 text-right text-[10px]">${weightNote}</div>
+                            </div>`;
+                    });
+                    setsHtml += '</div>';
+                }
+            }
+
+            card.innerHTML = `
+                <div class="p-3 flex items-center gap-3 border-b border-gray-700/50">
+                    <div class="flex-grow">
+                        <div class="flex items-center">
+                            <span class="font-bold text-sm text-white">${name}</span>
+                            ${ratingHtml}
+                        </div>
+                        <div class="flex gap-3 mt-0.5">
+                            <span class="text-xs text-gray-400">${sets.length} set${sets.length !== 1 ? 's' : ''}${isTimer ? ' · timer' : ''}</span>
+                            ${!isTimer && totalCap > 0 ? `<span class="text-xs text-green-400">${Math.round(totalCap).toLocaleString()} ${unitLabel} vol</span>` : ''}
+                            ${!isTimer && ex.maxWeight ? `<span class="text-xs text-blue-400">max ${fmtWeight(ex.maxWeight)} ${unitLabel}</span>` : ''}
+                        </div>
+                    </div>
+                    <a href="/exercise/${ex.actionLibraryGroupId}" target="_blank" class="text-gray-500 hover:text-blue-400 transition flex-shrink-0" title="View exercise">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                    </a>
+                </div>
+                ${setsHtml}
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function closeDetailModal() {
+        document.getElementById('detailModal').classList.add('hidden');
+        document.getElementById('detailModal').classList.remove('flex');
+    }
+
+    function exportHistory() {
+        if (!historyData || !historyData.records || historyData.records.length === 0) {
+            return alert('No data to export.');
+        }
+        const exportObj = {
+            exportDate: new Date().toISOString(),
+            dateRange: {
+                start: document.getElementById('startDate').value,
+                end: document.getElementById('endDate').value
+            },
+            stats: historyData.stats,
+            records: historyData.records
+        };
+        const jsonStr = JSON.stringify(exportObj, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `workout_history_${document.getElementById('startDate').value}_${document.getElementById('endDate').value}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeDetailModal();
+    });
+
+    // Auto-load on page open
+    fetchHistory();
+</script>
+{% endblock %}

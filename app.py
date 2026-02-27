@@ -356,6 +356,19 @@ def preload_assets():
 
     return Response(generate(), mimetype='text/plain')
 
+@app.route('/api/stats/<int:group_id>')
+def api_stats(group_id):
+    """Returns user statistics for a specific exercise."""
+    if not client.credentials.get("token"): 
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    try:
+        # Fetch stats using the client
+        result = client.get_user_action_stats(group_id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/library')
 def library():
     if not client.credentials.get("token"): return redirect(url_for('settings'))
@@ -449,6 +462,19 @@ def api_exercise_detail(ex_id):
             return jsonify({"error": "Unauthorized"}), 401
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/workout/<code>')
+def api_workout_detail(code):
+    """Returns workout detail as JSON (used for bulk export)."""
+    if not client.credentials.get("token"):
+        return jsonify({"error": "Unauthorized"}), 401
+    try:
+        detail = client.get_workout_detail(code)
+        return jsonify(detail)
+    except Exception as e:
+        if str(e) == "Unauthorized":
+            return jsonify({"error": "Unauthorized"}), 401
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/calendar')
 def api_calendar():
     """Returns calendar data for a specific month."""
@@ -484,6 +510,45 @@ def api_schedule():
     try:
         success = client.schedule_workout(date_str, template_code, status)
         return jsonify({"success": success})
+    except Exception as e:
+        if str(e) == "Unauthorized":
+            return jsonify({"error": "Unauthorized"}), 401
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/history')
+def history_page():
+    if not client.credentials.get("token"):
+        return redirect(url_for('settings'))
+    unit = client.credentials.get('unit', 0)
+    return render_template('history.html', unit=unit)
+
+@app.route('/api/history')
+def api_history():
+    if not client.credentials.get("token"):
+        return jsonify({"error": "Unauthorized"}), 401
+    start = request.args.get('start')
+    end = request.args.get('end')
+    if not start or not end:
+        return jsonify({"error": "Missing start/end parameters"}), 400
+    try:
+        records = client.get_training_records(start, end)
+        stats = client.get_training_stats(start, end)
+        return jsonify({"records": records, "stats": stats})
+    except Exception as e:
+        if str(e) == "Unauthorized":
+            return jsonify({"error": "Unauthorized"}), 401
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/history/detail/<int:training_id>')
+def api_history_detail(training_id):
+    """Returns detailed info for a completed training session."""
+    if not client.credentials.get("token"):
+        return jsonify({"error": "Unauthorized"}), 401
+    training_type = request.args.get('type', 'custom')  # 'course' or 'custom'
+    try:
+        detail = client.get_training_detail(training_id, training_type)
+        session_info = client.get_training_session_info(training_id)
+        return jsonify({"detail": detail, "session": session_info})
     except Exception as e:
         if str(e) == "Unauthorized":
             return jsonify({"error": "Unauthorized"}), 401

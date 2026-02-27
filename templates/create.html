@@ -181,37 +181,37 @@
     </div>
 </div>
 
+<div id="stats-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-[60]">
+    <div class="bg-gray-800 p-6 rounded-lg w-full max-w-2xl border border-gray-700 shadow-2xl flex flex-col max-h-[80vh]">
+        <div class="flex justify-between items-center mb-4 border-b border-gray-700 pb-2">
+            <h3 class="text-xl font-bold text-white" id="stats-modal-title">Exercise History</h3>
+            <button onclick="closeStatsModal()" class="text-gray-400 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        
+        <div class="overflow-y-auto flex-grow">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-900 text-gray-400 text-xs uppercase sticky top-0">
+                    <tr>
+                        <th class="p-3 border-b border-gray-700">Date</th>
+                        <th class="p-3 border-b border-gray-700">1RM Est.</th>
+                        <th class="p-3 border-b border-gray-700">Max Weight</th>
+                        <th class="p-3 border-b border-gray-700">Volume</th>
+                    </tr>
+                </thead>
+                <tbody id="stats-table-body" class="text-sm text-gray-300">
+                    </tbody>
+            </table>
+            <div id="stats-loading" class="text-center py-8 text-gray-500 hidden">Loading history...</div>
+            <div id="stats-empty" class="text-center py-8 text-gray-500 hidden">No history found for this exercise.</div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/workout-logic.js"></script>
 <script>
     const customInstruction = `{{ custom_instruction | safe }}`;
-
-    // --- KONFIGURATION DER PRESETS ---
-    // Definiert Ranges und Defaults basierend auf API Docs
-    const PRESET_RULES = {
-        '-1': { // Custom
-            label: "KG", step: 1, 
-            defW: 10, minW: 1, maxW: 100, 
-            defR: 10, minR: 1, maxR: 99, 
-            defRest: 60, minRest: 0, maxRest: 300 
-        },
-        '1': { // Gain Muscle
-            label: "RM", step: 1,
-            defW: 13, minW: 9, maxW: 13,   // RM Scope
-            defR: 12, minR: 8, maxR: 12,   // Reps Scope
-            defRest: 60, minRest: 45, maxRest: 120 
-        },
-        '3': { // Stamina
-            label: "RM", step: 1,
-            defW: 17, minW: 15, maxW: 20, 
-            defR: 15, minR: 13, maxR: 20, 
-            defRest: 45, minRest: 30, maxRest: 180 
-        },
-        '5': { // Strength
-            label: "RM", step: 1,
-            defW: 7, minW: 4, maxW: 9, 
-            defR: 6, minR: 2, maxR: 8, 
-            defRest: 90, minRest: 60, maxRest: 180 
-        }
-    };
 
     let workoutData = [];
     const existingData = {{ existing_workout | default(None) | tojson | safe }};
@@ -285,10 +285,12 @@
             return {
                 variants: details.actionLibraryList || [],
                 presets: details.templatePresetList || [],
-                isUnilateral: details.isLeftRight === 1 
+                isUnilateral: details.isLeftRight === 1,
+                isBarbell: details.isBarbell === 1,
+                recommendedWeight: details.recommendedWeight || null
             };
         } catch (e) {
-            return { variants: [], presets: [], isUnilateral: false };
+            return { variants: [], presets: [], isUnilateral: false, isBarbell: false };
         }
     }
 
@@ -328,10 +330,11 @@
                     // Preset workouts: use counterweight2 (RM).
                     w = parseInt(counters[i] || 0);
                 } else {
-                    // Custom workouts: API `weights` are stored as KG.
+                    // Custom workouts: API returns weights in KG.
                     const val = parseFloat(weights[i] || 0);
                     if (!isNaN(val) && val > 0) {
-                        w = Math.round(val);
+                        // If in imperial mode, convert KG → LBS for display
+                        w = userUnit === 1 ? kgToLbs(val) : Math.round(val * 2) / 2;
                     }
                 }
 
@@ -346,12 +349,13 @@
 
             workoutData.push({
                 internalId: Date.now() + Math.random(),
-                groupId: parseInt(groupId), 
+                groupId: parseInt(groupId),
                 title: apiEx.title,
                 img: apiEx.img,
-                isUnilateral: meta.isUnilateral, 
-                variants: meta.variants, 
-                presets: meta.presets, 
+                isUnilateral: meta.isUnilateral,
+                isBarbell: meta.isBarbell,
+                variants: meta.variants,
+                presets: meta.presets,
                 selectedVariantId: parseInt(apiEx.actionLibraryId),
                 selectedPresetId: parseInt(apiEx.templatePresetId),
                 sets: setsParsed
@@ -366,13 +370,24 @@
         try {
             const meta = await fetchExerciseMetadata(groupId);
             // Default Custom Settings
-            const rules = PRESET_RULES['-1']; 
-            
+            const rules = WorkoutLogic.getRules({ selectedPresetId: -1, isUnilateral: meta.isUnilateral, isBarbell: meta.isBarbell }, userUnit);
+
+            // Use recommendedWeight from API if available, otherwise fall back to rules default
+            let defaultWeight = rules.defW;
+            if (meta.recommendedWeight) {
+                // recommendedWeight from API is in KG; convert if imperial
+                defaultWeight = userUnit === 1
+                    ? WorkoutLogic.kgToLbs(meta.recommendedWeight)
+                    : meta.recommendedWeight;
+                // Clamp to valid range
+                defaultWeight = WorkoutLogic.validateAndClamp(defaultWeight, rules.minW, rules.maxW, rules.step);
+            }
+
             const newSetTemplate = {
-                reps: rules.defR, 
-                weight: rules.defW, 
-                mode: 1, 
-                rest: rules.defRest, 
+                reps: rules.defR,
+                weight: defaultWeight,
+                mode: 1,
+                rest: rules.defRest,
                 unit: 'reps'
             };
 
@@ -384,12 +399,13 @@
             }
 
             const newEx = {
-                internalId: tempId, 
+                internalId: tempId,
                 groupId: groupId,
                 title: title,
                 img: img,
-                isUnilateral: meta.isUnilateral, 
-                variants: meta.variants, 
+                isUnilateral: meta.isUnilateral,
+                isBarbell: meta.isBarbell,
+                variants: meta.variants,
                 presets: meta.presets,
                 selectedVariantId: meta.variants?.[0]?.id || groupId,
                 selectedPresetId: -1, // Custom Default
@@ -405,36 +421,13 @@
     }
 
     // --- HELPER ---
-    function getRules(ex) {
-        let rules = PRESET_RULES[ex.selectedPresetId] || PRESET_RULES['-1'];
-        // Adjust limits for Custom (KG) based on Unilateral/Bilateral
-        if (ex.selectedPresetId == -1) {
-            rules = {...rules}; // Clone
-            
-            // Handle Imperial
-            if (userUnit === 1) {
-                rules.label = "LBS";
-                // Convert limits to LBS roughly for UI limits
-                if (ex.isUnilateral) {
-                    rules.maxW = 110;
-                    rules.minW = 9;
-                } else {
-                    rules.maxW = 220;
-                    rules.minW = 15;
-                }
-            } else {
-                // Metric
-                if (ex.isUnilateral) {
-                    rules.maxW = 50;
-                    rules.minW = 4;
-                } else {
-                    rules.maxW = 100;
-                    rules.minW = 7;
-                }
-            }
-        }
-        return rules;
-    }
+    // Thin wrappers around WorkoutLogic (workout-logic.js) that inject the page-level userUnit.
+    function getRules(ex)                           { return WorkoutLogic.getRules(ex, userUnit); }
+    function validateAndClamp(v, min, max, step)    { return WorkoutLogic.validateAndClamp(v, min, max, step); }
+    function lbsToKg(lbs)                           { return WorkoutLogic.lbsToKg(lbs); }
+    function kgToLbs(kg)                            { return WorkoutLogic.kgToLbs(kg); }
+    function parseImportedSets(sets, uni, expanded) { return WorkoutLogic.parseImportedSets(sets, uni, expanded); }
+    function buildExportJSON(data, name)            { return WorkoutLogic.buildExportJSON(data, name); }
 
     // --- RENDER UI ---
     function renderBuilder() {
@@ -461,7 +454,7 @@
             ).join('');
 
             let presetsHtml = `
-                <option value="-1" ${ex.selectedPresetId == -1 ? 'selected' : ''}>Customize (KG)</option>
+                <option value="-1" ${ex.selectedPresetId == -1 ? 'selected' : ''}>Customize (${userUnit === 1 ? 'lb' : 'KG'})</option>
                 <option value="1" ${ex.selectedPresetId == 1 ? 'selected' : ''}>Gain Muscle (RM)</option>
                 <option value="3" ${ex.selectedPresetId == 3 ? 'selected' : ''}>Stamina (RM)</option>
                 <option value="5" ${ex.selectedPresetId == 5 ? 'selected' : ''}>Strength (RM)</option>
@@ -486,6 +479,9 @@
                                 </button>
                                 <button onclick="moveEx(${exIndex}, 1)" class="text-gray-400 hover:text-white disabled:opacity-30" ${exIndex === workoutData.length - 1 ? 'disabled' : ''} title="Move Down">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </button>
+                                <button onclick="openStats(${ex.groupId}, '${ex.title.replace(/'/g, "\\'")}')" class="text-blue-400 hover:text-blue-300 ml-2" title="View Stats">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                                 </button>
                                 <button onclick="removeEx(${exIndex})" class="text-red-500 hover:text-red-400 text-sm ml-2">✖ Remove</button>
                             </div>
@@ -539,10 +535,9 @@
                                     <button onclick="toggleUnit(${exIndex}, ${sIdx})" class="px-1 text-[10px] bg-gray-700 text-gray-400 rounded w-8 border border-gray-600">${set.unit === 'reps' ? 'Rep' : 'Sec'}</button>
                                 </div>
                                 <div class="col-span-2">
-                                    <input type="number" 
-                                           min="${rules.minW}" max="${rules.maxW}" step="${rules.step}"
-                                           value="${set.weight}" 
-                                           onchange="validateAndSet(${exIndex}, ${sIdx}, 'weight', this)" 
+                                    <input type="text" inputmode="decimal"
+                                           value="${set.weight}"
+                                           onchange="validateAndSet(${exIndex}, ${sIdx}, 'weight', this)"
                                            class="w-full bg-gray-700 ${ex.selectedPresetId != -1 ? 'text-yellow-400 font-bold' : 'text-white'} text-center rounded border border-gray-600 p-1">
                                 </div>
                                 <div class="col-span-3">
@@ -579,20 +574,18 @@
     window.validateAndSet = (exIdx, sIdx, field, input) => {
         const ex = workoutData[exIdx];
         const rules = getRules(ex);
-        let val = parseInt(input.value);
+        // Normalize: accept both "11,5" (European) and "11.5" (US) as decimal separator
+        const raw = String(input.value).replace(',', '.');
+        let val = parseFloat(raw);
 
-        // Grenzen prüfen
-        let min = 0, max = 999;
-        if(field === 'weight') { min = rules.minW; max = rules.maxW; }
-        if(field === 'reps') { min = rules.minR; max = rules.maxR; }
-        if(field === 'rest') { min = rules.minRest; max = rules.maxRest; }
+        let min = 0, max = 999, step = 1;
+        if (field === 'weight') { min = rules.minW; max = rules.maxW; step = rules.step; }
+        if (field === 'reps')   { min = rules.minR; max = rules.maxR; step = 1; }
+        if (field === 'rest')   { min = rules.minRest; max = rules.maxRest; step = 1; }
 
-        if (isNaN(val)) val = min;
-        if (val < min) val = min;
-        if (val > max) val = max;
+        val = validateAndClamp(val, min, max, step);
 
-        // Wert zurückschreiben ins Input und Data
-        input.value = val; 
+        input.value = val;
         workoutData[exIdx].sets[sIdx][field] = val;
     };
 
@@ -612,22 +605,10 @@
 
     window.exportJSON = () => {
         if(workoutData.length === 0) return alert("Plan is empty!");
-        
-        const exportObj = {
-            name: document.getElementById('plan-name').value || "Custom Workout",
-            exercises: workoutData.map(ex => ({
-                id: ex.groupId,
-                title: ex.title,
-                presetId: ex.selectedPresetId,  
-                sets: ex.sets.map(s => ({
-                    reps: s.reps,
-                    weight: s.weight,
-                    mode: s.mode,
-                    rest: s.rest
-                }))
-            }))
-        };
-        
+
+        const planName = document.getElementById('plan-name').value || "Custom Workout";
+        const exportObj = buildExportJSON(workoutData, planName);
+
         const jsonStr = JSON.stringify(exportObj, null, 2);
         navigator.clipboard.writeText(jsonStr).then(() => {
             alert("Workout JSON copied to clipboard!");
@@ -810,32 +791,25 @@ You must output a JSON object with the following structure:
                     const libEx = fullLibrary.find(e => e.id == groupId);
                     const title = libEx ? libEx.title : (ex.title || "Unknown Exercise");
 
-                    // Map sets
+                    // Map sets — normalize comma decimal separator for weight (e.g. "11,5" → 11.5)
                     const setsParsed = ex.sets.map(s => ({
                         reps: parseInt(s.reps),
-                        weight: parseInt(s.weight),
+                        weight: parseFloat(String(s.weight ?? 0).replace(',', '.')),
                         mode: parseInt(s.mode || 1),
                         rest: parseInt(s.rest || 60),
                         unit: 'reps'
                     }));
 
-                    // Handle Unilateral: If imported sets are just "sets", but exercise is unilateral,
-                    // we might need to duplicate them for L/R if the LLM didn't provide them explicitly.
-                    // However, our prompt asks for a simple list.
-                    // If the exercise is unilateral, the API expects L1, R1, L2, R2 order.
-                    // If the LLM provides 3 sets, and it's unilateral, we should probably assume these are "pairs" or just raw sets.
-                    // To be safe, let's assume the LLM provides "per round" sets.
-                    // So if it says 3 sets, we generate 3 pairs (6 sets) for unilateral.
-                    
-                    let finalSets = [];
-                    if (meta.isUnilateral) {
-                        setsParsed.forEach(s => {
-                            finalSets.push({...s}); // Left
-                            finalSets.push({...s}); // Right
-                        });
-                    } else {
-                        finalSets = setsParsed;
-                    }
+                    // Handle Unilateral: expand L/R pairs if not already expanded.
+                    // Exports from this app include `isUnilateralExpanded: true`, so we don't double them.
+                    // AI-generated or manual JSON without the flag will be expanded as before.
+                    const alreadyExpanded = !!ex.isUnilateralExpanded;
+                    const finalSets = parseImportedSets(setsParsed, meta.isUnilateral, alreadyExpanded);
+
+                    // Determine the preset: use the exported preset field if present, else default to Custom (-1).
+                    const importedPresetId = (ex.preset !== undefined && ex.preset !== null)
+                        ? parseInt(ex.preset)
+                        : -1;
 
                     workoutData.push({
                         internalId: Date.now() + Math.random(),
@@ -846,7 +820,7 @@ You must output a JSON object with the following structure:
                         variants: meta.variants,
                         presets: meta.presets,
                         selectedVariantId: meta.variants?.[0]?.id || groupId, // Default to first variant
-                        selectedPresetId: parseInt(ex.presetId),
+                        selectedPresetId: importedPresetId,
                         sets: finalSets
                     });
                 }
@@ -986,6 +960,64 @@ You must output a JSON object with the following structure:
         } else {
             alert("Error: " + json.message);
         }
+    };
+
+
+    // --- STATS LOGIC ---
+    window.openStats = async (groupId, title) => {
+        const modal = document.getElementById('stats-modal');
+        const titleEl = document.getElementById('stats-modal-title');
+        const tbody = document.getElementById('stats-table-body');
+        const loading = document.getElementById('stats-loading');
+        const empty = document.getElementById('stats-empty');
+
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        titleEl.innerText = `History: ${title}`;
+        tbody.innerHTML = '';
+        loading.classList.remove('hidden');
+        empty.classList.add('hidden');
+
+        try {
+            const res = await fetch(`/api/stats/${groupId}`);
+            const json = await res.json();
+
+            loading.classList.add('hidden');
+
+            if (json && json.data && json.data.length > 0) {
+                const history = json.data;
+                
+                let html = '';
+                history.forEach(item => {
+                    // API liefert Gewicht oft als kg, Einheit ist in userUnit global
+                    // Die API Response scheint unabhängig von Settings immer raw zu sein (KG).
+                    // Wir zeigen es einfach an wie es kommt, oder formatieren es.
+                    
+                    html += `
+                        <tr class="border-b border-gray-700/50 hover:bg-gray-700/30">
+                            <td class="p-3">${item.dayStr}</td>
+                            <td class="p-3 font-bold text-green-400">${item.oneRepMax ? item.oneRepMax.toFixed(1) : '-'}</td>
+                            <td class="p-3 text-white">${item.maxWeight}</td>
+                            <td class="p-3 text-gray-400">${item.totalCapacity}</td>
+                        </tr>
+                    `;
+                });
+                tbody.innerHTML = html;
+            } else {
+                empty.classList.remove('hidden');
+            }
+
+        } catch (e) {
+            loading.classList.add('hidden');
+            tbody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-400">Error loading stats</td></tr>`;
+            console.error(e);
+        }
+    };
+
+    window.closeStatsModal = () => {
+        const modal = document.getElementById('stats-modal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
     };
 </script>
 {% endblock %}

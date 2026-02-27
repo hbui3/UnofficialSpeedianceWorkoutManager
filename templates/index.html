@@ -3,21 +3,31 @@
 <!-- Workouts Section -->
 <div class="flex justify-between items-center mb-6">
     <h1 class="text-3xl font-bold text-white">My Workouts</h1>
-    <a href="/create" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow hover:shadow-lg transition">New Workout</a>
+    <div class="flex gap-2 items-center">
+        <button id="selectModeBtn" onclick="toggleSelectMode()" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded transition text-sm">Select</button>
+        <button id="exportSelectedBtn" onclick="exportSelectedWorkouts()" class="hidden bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition text-sm">Export Selected (0)</button>
+        <a href="/create" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow hover:shadow-lg transition">New Workout</a>
+    </div>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12" id="workout-grid">
     {% for w in workouts %}
-    <div class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 relative group cursor-move hover:border-blue-500 transition-colors duration-200" 
-         draggable="true" 
-         ondragstart="drag(event)" 
-         data-code="{{ w.code }}" 
+    <div class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 relative group workout-card transition-colors duration-200"
+         id="card-{{ w.code }}"
+         data-code="{{ w.code }}"
          data-name="{{ w.name }}">
-        
-        <div class="p-5">
+
+        <!-- Selection checkbox (hidden in drag mode, shown in select mode) -->
+        <div class="select-overlay hidden absolute top-2 left-2 z-10">
+            <input type="checkbox" class="workout-checkbox w-5 h-5 accent-green-500 cursor-pointer"
+                   data-code="{{ w.code }}" onchange="updateExportCount()">
+        </div>
+
+        <div class="p-5 cursor-move drag-handle" draggable="true" ondragstart="drag(event)"
+             data-code="{{ w.code }}" data-name="{{ w.name }}">
             <div class="flex justify-between items-start">
                 <h3 class="text-xl font-bold text-white mb-2 truncate pr-2">{{ w.name }}</h3>
-                <span class="text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded">Drag me</span>
+                <span class="drag-label text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded">Drag me</span>
             </div>
             <div class="text-sm text-gray-400 space-y-1">
                 <p>Volume: {{ w.totalCapacity }} {{ 'lbs' if unit == 1 else 'kg' }}</p>
@@ -68,7 +78,10 @@
                         <span class="text-white">White entries:</span> Custom workouts you scheduled. These can be moved or deleted.
                     </li>
                     <li>
-                        <span class="text-blue-300">Blue entries:</span> Official Speediance Programs. These are fixed by the system and cannot be moved or deleted here.
+                        <span class="text-blue-300">Blue entries:</span> Official Speediance Programs (future). These are fixed by the system and cannot be moved or deleted here.
+                    </li>
+                    <li>
+                        <span class="text-gray-400">Gray entries:</span> Past completed workouts (custom or official). These are historical records and cannot be moved.
                     </li>
                 </ul>
             </div>
@@ -90,15 +103,15 @@
             <button id="nextMonth" class="text-gray-400 hover:text-white px-2 py-1 hover:bg-gray-700 rounded transition">
                 Next &gt;
             </button>
+            <button id="toggleFirstDay" onclick="toggleFirstDayOfWeek()" class="text-xs text-gray-400 hover:text-white px-2 py-1 hover:bg-gray-700 rounded border border-gray-600 transition" title="Toggle week start day"></button>
         </div>
     </div>
     
     <div class="bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-700">
-        <!-- Weekday Headers -->
-        <div class="grid grid-cols-7 gap-2 mb-2 text-center text-gray-400 font-bold uppercase text-sm tracking-wider">
-            <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+        <!-- Weekday Headers (rendered dynamically by JS based on firstDayOfWeek setting) -->
+        <div id="weekdayHeaders" class="grid grid-cols-7 gap-2 mb-2 text-center text-gray-400 font-bold uppercase text-sm tracking-wider">
         </div>
-        
+
         <!-- Calendar Grid -->
         <div id="calendarGrid" class="grid grid-cols-7 gap-2 auto-rows-fr">
             <!-- Calendar days will be injected here -->
@@ -149,8 +162,140 @@
 
 <script>
     let currentDate = new Date();
-    
+
+    // --- First Day of Week (0=Sunday, 1=Monday) stored in localStorage ---
+    let firstDayOfWeek = parseInt(localStorage.getItem('firstDayOfWeek') || '1', 10);
+
+    // --- Bulk Export ---
+    let selectModeActive = false;
+
+    function toggleSelectMode() {
+        selectModeActive = !selectModeActive;
+        const btn = document.getElementById('selectModeBtn');
+        const exportBtn = document.getElementById('exportSelectedBtn');
+        const overlays = document.querySelectorAll('.select-overlay');
+        const dragHandles = document.querySelectorAll('.drag-handle');
+        const dragLabels = document.querySelectorAll('.drag-label');
+
+        if (selectModeActive) {
+            btn.textContent = 'Cancel';
+            btn.className = 'bg-red-700 hover:bg-red-600 text-white px-4 py-2 rounded transition text-sm';
+            overlays.forEach(el => el.classList.remove('hidden'));
+            dragLabels.forEach(el => el.classList.add('hidden'));
+            dragHandles.forEach(el => { el.draggable = false; el.style.cursor = 'default'; });
+            exportBtn.classList.remove('hidden');
+        } else {
+            btn.textContent = 'Select';
+            btn.className = 'bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded transition text-sm';
+            overlays.forEach(el => el.classList.add('hidden'));
+            dragLabels.forEach(el => el.classList.remove('hidden'));
+            dragHandles.forEach(el => { el.draggable = true; el.style.cursor = 'move'; });
+            exportBtn.classList.add('hidden');
+            document.querySelectorAll('.workout-checkbox').forEach(cb => cb.checked = false);
+        }
+        updateExportCount();
+    }
+
+    function updateExportCount() {
+        const count = document.querySelectorAll('.workout-checkbox:checked').length;
+        const btn = document.getElementById('exportSelectedBtn');
+        btn.textContent = `Export Selected (${count})`;
+        btn.disabled = count === 0;
+        btn.className = count === 0
+            ? 'hidden bg-green-600 text-white px-4 py-2 rounded transition text-sm opacity-50 cursor-not-allowed'
+            : 'bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition text-sm';
+        if (selectModeActive) btn.classList.remove('hidden');
+    }
+
+    async function exportSelectedWorkouts() {
+        const checked = document.querySelectorAll('.workout-checkbox:checked');
+        if (checked.length === 0) return alert('No workouts selected.');
+
+        const codes = Array.from(checked).map(cb => cb.dataset.code);
+        const exportBtn = document.getElementById('exportSelectedBtn');
+        exportBtn.textContent = 'Fetching...';
+        exportBtn.disabled = true;
+
+        try {
+            const results = await Promise.all(codes.map(async code => {
+                const resp = await fetch(`/api/workout/${code}`);
+                if (!resp.ok) throw new Error(`Failed to fetch workout ${code}`);
+                return resp.json();
+            }));
+
+            // Convert API format to the same JSON export format used in create.html
+            const exportArr = results.map(detail => {
+                if (!detail) return null;
+                return {
+                    name: detail.name || 'Unknown',
+                    exercises: (detail.actionLibraryList || []).map(ex => {
+                        const presetId = parseInt(ex.templatePresetId ?? -1);
+                        const isRM = presetId !== -1;
+                        const reps = (ex.setsAndReps || '').split(',');
+                        const weights = (ex.weights || '').split(',');
+                        const counters = (ex.counterweight2 || '').split(',');
+                        const modes = (ex.sportMode || '').split(',');
+                        const breaks = (ex.breakTime2 || '').split(',');
+                        const leftRights = (ex.leftRight || '').split(',');
+                        const isUnilateral = leftRights.some(lr => lr === '1' || lr === '2');
+                        return {
+                            id: ex.groupId,
+                            title: ex.title,
+                            preset: presetId,
+                            isUnilateralExpanded: isUnilateral,
+                            sets: reps.map((rep, i) => ({
+                                reps: parseInt(rep) || 0,
+                                weight: isRM ? (parseInt(counters[i]) || 0) : (parseFloat(weights[i]) || 0),
+                                mode: parseInt(modes[i]) || 1,
+                                rest: parseInt(breaks[i]) || 60
+                            }))
+                        };
+                    })
+                };
+            }).filter(Boolean);
+
+            const jsonStr = JSON.stringify(exportArr, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `workouts_export_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+
+            toggleSelectMode(); // Exit select mode after export
+        } catch (err) {
+            console.error(err);
+            alert('Export failed: ' + err.message);
+        } finally {
+            updateExportCount();
+        }
+    }
+
+    const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    function renderWeekdayHeaders() {
+        const container = document.getElementById('weekdayHeaders');
+        container.innerHTML = '';
+        for (let i = 0; i < 7; i++) {
+            const dayIndex = (firstDayOfWeek + i) % 7;
+            const div = document.createElement('div');
+            div.textContent = WEEKDAY_NAMES[dayIndex];
+            container.appendChild(div);
+        }
+        const btn = document.getElementById('toggleFirstDay');
+        if (btn) btn.textContent = firstDayOfWeek === 1 ? 'Week: Mon–Sun' : 'Week: Sun–Sat';
+    }
+
+    function toggleFirstDayOfWeek() {
+        firstDayOfWeek = firstDayOfWeek === 0 ? 1 : 0;
+        localStorage.setItem('firstDayOfWeek', String(firstDayOfWeek));
+        renderWeekdayHeaders();
+        fetchCalendarData();
+    }
+
     function initCalendar() {
+        renderWeekdayHeaders();
         renderCalendarHeader();
         fetchCalendarData();
     }
@@ -191,12 +336,13 @@
 
         if (!daysData || daysData.length === 0) return;
 
-        // Determine start day of the week (0=Sun, 1=Mon, etc.)
+        // Determine start day of the week, adjusted for firstDayOfWeek setting
         const firstDayDate = new Date(daysData[0].date);
-        const startDay = firstDayDate.getDay();
+        const startDay = firstDayDate.getDay(); // 0=Sunday
+        const offset = (startDay - firstDayOfWeek + 7) % 7;
 
         // Add empty cells for previous month days
-        for (let i = 0; i < startDay; i++) {
+        for (let i = 0; i < offset; i++) {
             const emptyCell = document.createElement('div');
             emptyCell.className = 'bg-transparent p-2';
             grid.appendChild(emptyCell);
@@ -225,10 +371,18 @@
             if (day.trainingPlanList && day.trainingPlanList.length > 0) {
                 day.trainingPlanList.forEach(plan => {
                     const pill = document.createElement('div');
-                    const isProgram = plan.isReservation === false; // Programs are not reservations
+                    const isPast = day.date < todayStr;
+                    // isReservation===false means either an official program (future) or a past completed workout
+                    const isNotReservation = plan.isReservation === false;
+                    const isPastEntry = isNotReservation && isPast;
+                    const isProgram = isNotReservation && !isPast;
 
-                    if (isProgram) {
-                        // Style for Programs (Blue-ish, no delete)
+                    if (isPastEntry) {
+                        // Style for past completed workouts (gray, no delete/drag)
+                        pill.className = 'workout-pill text-xs text-gray-400 bg-gray-700/40 border-gray-600/50 truncate';
+                        pill.title = `Completed: ${plan.title}`;
+                    } else if (isProgram) {
+                        // Style for future official Programs (Blue-ish, no delete)
                         pill.className = 'workout-pill text-xs text-blue-200 bg-blue-900/40 border-blue-800/50 truncate';
                         pill.title = `Program: ${plan.exclusivePlanName || plan.title}`;
                     } else {
@@ -245,8 +399,8 @@
                     
                     pill.appendChild(titleSpan);
 
-                    // Only add delete button for user reservations
-                    if (!isProgram) {
+                    // Only add delete button for active (non-past) user reservations
+                    if (!isProgram && !isPastEntry) {
                         const delBtn = document.createElement('span');
                         delBtn.innerHTML = '&times;';
                         delBtn.className = 'delete-schedule-btn hover:text-red-300';

@@ -586,3 +586,79 @@ class SpeedianceClient:
         if resp.status_code == 401:
             raise Exception("Unauthorized")
         return resp.json()
+
+    def get_training_records(self, start_date, end_date):
+        """Fetches training session records for a date range.
+        GET /api/mobile/v2/report/userTrainingDataRecord?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+        """
+        url = f"{self.base_url}/api/mobile/v2/report/userTrainingDataRecord?startDate={start_date}&endDate={end_date}"
+        try:
+            resp = self._request('GET', url, headers=self._get_headers())
+            if resp.status_code == 401:
+                raise Exception("Unauthorized")
+            return resp.json().get('data', [])
+        except Exception as e:
+            if str(e) == "Unauthorized": raise e
+            print(f"Error fetching training records: {e}")
+            return []
+
+    def get_training_stats(self, start_date, end_date):
+        """Fetches aggregated training stats for a date range.
+        GET /api/mobile/v2/report/userTrainingDataStat?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+        """
+        url = f"{self.base_url}/api/mobile/v2/report/userTrainingDataStat?startDate={start_date}&endDate={end_date}"
+        try:
+            resp = self._request('GET', url, headers=self._get_headers())
+            if resp.status_code == 401:
+                raise Exception("Unauthorized")
+            return resp.json().get('data', {})
+        except Exception as e:
+            if str(e) == "Unauthorized": raise e
+            print(f"Error fetching training stats: {e}")
+            return {}
+
+    def get_training_detail(self, training_id, training_type):
+        """Fetches detailed info for a completed training session.
+        training_type determines the endpoint:
+          - Official Courses → /api/app/trainingInfo/courseTrainingInfoDetail/{id}
+          - Custom Templates → /api/app/trainingInfo/cttTrainingInfoDetail/{id}
+        """
+        if training_type == 'course':
+            url = f"{self.base_url}/api/app/trainingInfo/courseTrainingInfoDetail/{training_id}"
+        else:
+            url = f"{self.base_url}/api/app/trainingInfo/cttTrainingInfoDetail/{training_id}"
+        try:
+            resp = self._request('GET', url, headers=self._get_headers())
+            if resp.status_code == 401:
+                raise Exception("Unauthorized")
+            return resp.json().get('data', {})
+        except Exception as e:
+            if str(e) == "Unauthorized": raise e
+            print(f"Error fetching training detail: {e}")
+            return {}
+
+    def get_training_session_info(self, training_id):
+        """Fetches overall session info (name, duration, calories, capacity).
+        GET /api/app/trainingInfo/courseTrainingInfo/{id}
+        """
+        url = f"{self.base_url}/api/app/trainingInfo/courseTrainingInfo/{training_id}"
+        try:
+            resp = self._request('GET', url, headers=self._get_headers())
+            if resp.status_code == 401:
+                raise Exception("Unauthorized")
+            return resp.json().get('data', {})
+        except Exception as e:
+            if str(e) == "Unauthorized": raise e
+            print(f"Error fetching training session info: {e}")
+            return {}
+
+    def get_user_action_stats(self, group_id, page=1, size=12):
+        """Fetches historical statistics for a specific exercise group."""
+        url = f"{self.base_url}/api/app/actionLibraryGroup/userActionStatPage?id={group_id}&pageNo={page}&pageSize={size}"
+        try:
+            resp = self._request('GET', url, headers=self._get_headers())
+            return resp.json()
+        except Exception as e:
+            if str(e) == "Unauthorized": raise e
+            print(f"Error fetching stats: {e}")
+            return None
