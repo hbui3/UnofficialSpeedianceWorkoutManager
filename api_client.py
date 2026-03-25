@@ -141,6 +141,7 @@ class SpeedianceClient:
         headers = {
             "Host": self.host,
             "User-Agent": "Dart/3.9 (dart:io)",
+            "App_type": "SOFTWARE",
             "Content-Type": "application/json",
             "Timestamp": str(int(time.time() * 1000)),
             "Utc_offset": "+0000",
@@ -233,7 +234,8 @@ class SpeedianceClient:
             "Versioncode": "40304",
             "Mobiledevices": '{"brand":"google","device":"emulator64_x86_64_arm64","deviceType":"sdk_gphone64_x86_64","os":"","os_version":"31","manufacturer":"Google"}',
             "Content-Type": "application/json",
-            "User-Agent": "Dart/3.9 (dart:io)"
+            "User-Agent": "Dart/3.9 (dart:io)",
+            "App_type": "SOFTWARE"
         }
 
     def get_categories(self):
